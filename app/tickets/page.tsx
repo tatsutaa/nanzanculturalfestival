@@ -1,78 +1,101 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue, set, get } from "firebase/database";
 
 export default function TicketPage() {
   const [currentNumber, setCurrentNumber] = useState(0);
   const [myNumber, setMyNumber] = useState<number | null>(null);
+  const [callHistory, setCallHistory] = useState<number[]>([]); 
   const [isHydrated, setIsHydrated] = useState(false);
+  
+  // 🔊 音声の二重再生を防ぐためのフラグ
+  const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
-    // 1️⃣ 初回読み込み時に自分の番号を復元
     const savedNumber = localStorage.getItem("my_ticket_number");
-    
     const lastRef = ref(db, "last_issued_number");
-    get(lastRef).then((snapshot) => {
-      const lastNumber = snapshot.val() || 0;
-      // 💡 クラウドの最新番号が0より大きく、かつ自分の番号が最新発行番号以下の場合のみ有効にする
-      if (savedNumber && lastNumber > 0 && Number(savedNumber) <= lastNumber) {
-        setMyNumber(Number(savedNumber));
-      } else {
-        localStorage.removeItem("my_ticket_number");
-        setMyNumber(null);
+    const historyRef = ref(db, "call_history");
+    const currentRef = ref(db, "current_called_number");
+    
+    // 初回読み込み時に自分の番号をセット
+    if (savedNumber) {
+      setMyNumber(Number(savedNumber));
+    }
+    setIsHydrated(true);
+
+    // 📢 1. 現在の呼び出し番号を監視 ＋ 🔊 音を鳴らす
+    const unsubscribeCurrent = onValue(currentRef, (snapshot) => {
+      const data = snapshot.val() || 0;
+      setCurrentNumber(data);
+
+      // スマホ内の自分の番号をチェック
+      const mySavedNumber = localStorage.getItem("my_ticket_number");
+      if (mySavedNumber && data > 0) {
+        const myNum = Number(mySavedNumber);
+        
+        // 💡 自分の番号が呼び出された（一致した）瞬間、かつまだこの番号で音を鳴らしていない場合
+        if (data === myNum && lastPlayedNumber.current !== data) {
+          lastPlayedNumber.current = data; // 再生済みフラグ
+          
+          const audio = new Audio("/chime.mp3");
+          audio.volume = 1.0;
+          audio.play().catch((err) => {
+            console.log("ブラウザ制限：画面を一度タップしないと音が鳴らない場合があります", err);
+          });
+        }
       }
     });
 
-    setIsHydrated(true);
-
-    // 2️⃣ 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
-    const currentRef = ref(db, "current_called_number");
-    const unsubscribeCurrent = onValue(currentRef, (snapshot) => {
-      setCurrentNumber(snapshot.val() || 0);
+    // 📢 2. 独立した呼び出し履歴をリアルタイム受信
+    const unsubscribeHistory = onValue(historyRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const numbers = Object.values(data).map(Number).filter((n) => !isNaN(n));
+        setCallHistory(numbers);
+      } else {
+        setCallHistory([]);
+      }
     });
 
-    // 3️⃣ 📢 【新機能】クラウド上の「最新発行番号」もリアルタイム監視
-    // 💡 店員が全リセット（0番に戻す）したことを瞬時に検知して、お客様の画面もクリアします
+    // 📢 3. 【バグ修正】全体データ完全リセット（0番への初期化）の瞬間だけを綺麗に検知する
     const unsubscribeLast = onValue(lastRef, (snapshot) => {
-      const lastNumber = snapshot.val() || 0;
+      const lastNumber = snapshot.val();
+      
+      // 💡 店員が「データを全リセット」ボタンを押し、クラウドの最新番号が「完全に0」になった時だけ
+      // お客様画面を強制クリアします。これにより、順番を飛ばして呼び出してもバグらなくなります！
       if (lastNumber === 0) {
-        // クラウドがリセットされたら、スマホ内の記憶も完全に消去して「未発券」に戻す
         setMyNumber(null);
         localStorage.removeItem("my_ticket_number");
+        lastPlayedNumber.current = null;
       }
     });
 
     return () => {
       unsubscribeCurrent();
+      unsubscribeHistory();
       unsubscribeLast();
     };
   }, []);
 
-  // 整理券を発券する
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
-
     const lastIssuedRef = ref(db, "last_issued_number");
     const snapshot = await get(lastIssuedRef);
     const lastNumber = snapshot.val() || 0;
     const nextTicketNumber = lastNumber + 1; 
 
     await set(lastIssuedRef, nextTicketNumber);
-    
     setMyNumber(nextTicketNumber);
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
 
-  // お客様自身で発券を取り消す処理
   const handleCancelTicket = async () => {
     if (myNumber === null) return;
-    
-    if (confirm("この整理券を取り消しますか？（※一度取り消すと、元の番号には戻せません）")) {
+    if (confirm("この整理券を取り消しますか？")) {
       const cancelRef = ref(db, `cancelled_numbers/${myNumber}`);
       await set(cancelRef, true);
-
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
     }
@@ -85,18 +108,28 @@ export default function TicketPage() {
       <div className="p-6 bg-white rounded-2xl shadow-xl border border-gray-150">
         <h1 className="text-xl font-black text-blue-600 mb-6 text-center">🍿 お客様用 整理券画面</h1>
         
-        <div className="text-center bg-gray-50 p-6 rounded-xl mb-6 border border-gray-100">
-          <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在の呼び出し番号</p>
-          <p className="text-5xl font-black text-blue-600">
+        <div className="text-center bg-gray-50 p-6 rounded-xl mb-4 border border-gray-100">
+          <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在お呼び出し中の番号</p>
+          <p className="text-6xl font-black text-blue-600">
             {currentNumber === 0 ? "未発券" : `${currentNumber} 番`}
           </p>
         </div>
 
+        {callHistory.length > 1 && (
+          <div className="bg-gray-50/60 rounded-xl p-3 mb-6 border border-dashed border-gray-200">
+            <p className="text-[11px] text-gray-400 font-bold mb-1.5 text-center">📢 まえに呼んだ番号（履歴）</p>
+            <div className="flex justify-center gap-3 text-sm font-bold text-gray-500">
+              {callHistory.slice(1, 4).map((num, i) => (
+                <span key={i} className="bg-white px-3 py-1 rounded-md shadow-sm border border-gray-100">
+                  {num} 番
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {myNumber === null ? (
-          <button
-            onClick={handleIssueTicket}
-            className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md text-lg"
-          >
+          <button onClick={handleIssueTicket} className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md text-lg">
             整理券を発券する
           </button>
         ) : (
@@ -105,9 +138,13 @@ export default function TicketPage() {
             <p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
             
             <div className="mt-2 text-sm font-bold">
-              {currentNumber >= myNumber ? (
+              {currentNumber === myNumber ? (
                 <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">
                   📢 あなたの順番です！窓口へどうぞ！
+                </div>
+              ) : currentNumber > myNumber ? (
+                <div className="bg-gray-400 text-white p-2 rounded-lg text-xs">
+                  ⚠️ あなたの番号は呼び出しを通過しました
                 </div>
               ) : (
                 <p className="text-gray-600">
@@ -116,10 +153,7 @@ export default function TicketPage() {
               )}
             </div>
 
-            <button 
-              onClick={handleCancelTicket} 
-              className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto transition-colors"
-            >
+            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto">
               整理券を取り消す
             </button>
           </div>
