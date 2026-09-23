@@ -10,14 +10,11 @@ export default function TicketPage() {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    // 1️⃣ 自分の番号を端末の記憶から復元
     const savedNumber = localStorage.getItem("my_ticket_number");
     
-    // 店員側で「システム全体のリセット」が行われたかチェック
     const lastRef = ref(db, "last_issued_number");
     get(lastRef).then((snapshot) => {
       const lastNumber = snapshot.val() || 0;
-      // システムが動いていれば番号をセット、リセットされていればクリア
       if (savedNumber && Number(savedNumber) <= lastNumber && lastNumber > 0) {
         setMyNumber(Number(savedNumber));
       } else {
@@ -28,7 +25,6 @@ export default function TicketPage() {
 
     setIsHydrated(true);
 
-    // 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
     const currentRef = ref(db, "current_called_number");
     const unsubscribe = onValue(currentRef, (snapshot) => {
       setCurrentNumber(snapshot.val() || 0);
@@ -37,7 +33,6 @@ export default function TicketPage() {
     return () => unsubscribe();
   }, []);
 
-  // 2️⃣ 整理券を発券する
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
 
@@ -52,11 +47,16 @@ export default function TicketPage() {
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
 
-  // 🛠️ 【復活＆安全化】お客様自身で発券を取り消す処理
-  const handleCancelTicket = () => {
+  // 🛠️ 【機能強化】キャンセルされた番号をクラウドに報告する処理
+  const handleCancelTicket = async () => {
+    if (myNumber === null) return;
+    
     if (confirm("この整理券を取り消しますか？（※一度取り消すと、元の番号には戻せません）")) {
-      // 💡 スマホ内の記憶だけを消去します。クラウドの全体番号は減らさないため、
-      // 次の人は飛ばされることなく「次の番号」が安全に発行されます。
+      // 💡 Firebaseの「cancelled_numbers/番号」の場所に true を書き込む
+      const cancelRef = ref(db, `cancelled_numbers/${myNumber}`);
+      await set(cancelRef, true);
+
+      // スマホ内の記憶を消去
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
     }
@@ -100,7 +100,6 @@ export default function TicketPage() {
               )}
             </div>
 
-            {/* 🛠️ お客様用のキャンセルボタンを、安全なロジックで再配置 */}
             <button 
               onClick={handleCancelTicket} 
               className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto transition-colors"
