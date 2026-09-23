@@ -8,11 +8,10 @@ export default function AdminTicketPage() {
   const [currentNumber, setCurrentNumber] = useState(0);
   const [lastIssued, setLastIssued] = useState(0);
 
-  // 🔒 セキュリティと電卓用の状態管理
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [calculatorInput, setCalculatorInput] = useState(""); // 電卓の入力値
+  const [calculatorInput, setCalculatorInput] = useState(""); 
 
   const ADMIN_PASSWORD = "Tacchan";
 
@@ -43,7 +42,6 @@ export default function AdminTicketPage() {
     setPasswordInput("");
   };
 
-  // 📢 電卓で指定した番号を直接呼び出す
   const handleDirectCall = () => {
     const targetNumber = Number(calculatorInput);
     if (!targetNumber || targetNumber <= 0) {
@@ -54,18 +52,31 @@ export default function AdminTicketPage() {
       alert(`まだ ${targetNumber} 番は発券されていません（現在 ${lastIssued} 番まで発券中）`);
       return;
     }
-    
-    // Firebaseの現在呼び出し番号を、指定した番号に書き換える
     set(ref(db, "current_called_number"), targetNumber);
-    setCalculatorInput(""); // 電卓の画面をクリア
+    setCalculatorInput(""); 
   };
 
-  // 電卓のボタンを押した時の処理
+  // 🛠️ 【仕様修正】最新の発行をなかったことにし、同じ番号を次回出せるようにする
+  const handleUndoIssue = () => {
+    if (lastIssued <= 0) {
+      alert("これ以上戻せません（すでに0番です）");
+      return;
+    }
+    if (lastIssued <= currentNumber) {
+      alert("すでに呼び出し中、または呼び出し済みの番号を取り消すことはできません。先に呼び出し番号を電卓等で戻してください。");
+      return;
+    }
+
+    if (confirm(`最新の発行番号「${lastIssued}番」を取り消します。次回のお客様にはもう一度「${lastIssued}番」が発券されます。よろしいですか？`)) {
+      // 💡 クラウド側の登録を1つ戻すことで、次のお客様が引いたときに同じ番号が綺麗に再利用されます
+      set(ref(db, "last_issued_number"), lastIssued - 1);
+    }
+  };
+
   const handleKeyPress = (num: string) => {
     setCalculatorInput((prev) => prev + num);
   };
 
-  // 電卓のクリア（C）ボタン
   const handleClear = () => {
     setCalculatorInput("");
   };
@@ -110,10 +121,9 @@ export default function AdminTicketPage() {
           <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-red-500 underline">🚪 ログアウト</button>
         </div>
 
-        {/* 📊 現在のステータス表示 */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="text-center bg-red-50/50 p-3 rounded-xl border border-red-100">
-            <p className="text-xs text-red-400 font-bold下">現在呼び出し中</p>
+            <p className="text-xs text-red-400 font-bold">現在呼び出し中</p>
             <p className="text-3xl font-black text-red-600">{currentNumber} 番</p>
           </div>
           <div className="text-center bg-gray-50 p-3 rounded-xl border">
@@ -122,16 +132,22 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
-        {/* 🔢 計算機（テンキー）風 個別番号呼び出し機能 */}
+        <div className="text-right mb-6">
+          <button
+            onClick={handleUndoIssue}
+            className="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold px-3 py-1.5 rounded-lg transition-all"
+          >
+            ⚠️ 最新の発行( {lastIssued}番 )を取り消す
+          </button>
+        </div>
+
         <div className="bg-gray-900 p-4 rounded-2xl mb-6 shadow-inner">
           <p className="text-xs text-gray-400 font-bold mb-2 text-center">🎯 番号指定呼び出し（電卓パネル）</p>
           
-          {/* 電卓のディスプレイ */}
           <div className="bg-black text-right text-green-400 font-mono text-3xl p-3 rounded-lg mb-4 h-14 flex items-center justify-end border border-gray-700 shadow-inner">
             {calculatorInput || "0"}<span className="text-sm text-gray-500 ml-1">番</span>
           </div>
 
-          {/* 電卓のボタン配列 */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
               <button
@@ -163,7 +179,6 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
-        {/* 📢 通常の「次へ」ボタン */}
         <button
           onClick={handleNextCall}
           disabled={currentNumber >= lastIssued && lastIssued > 0}

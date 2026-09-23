@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase"; // 💡 firebase.jsの場所に合わせて自動で調整されます
+import { db } from "../firebase"; 
 import { ref, onValue, set, get } from "firebase/database";
 
 export default function TicketPage() {
@@ -10,51 +10,47 @@ export default function TicketPage() {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-  // 自分の番号はスマホ（ブラウザ）に保存しておく
-  const savedNumber = localStorage.getItem("my_ticket_number");
-  if (savedNumber) setMyNumber(Number(savedNumber));
-  setIsHydrated(true);
+    // 1️⃣ 自分の番号を端末から取得
+    const savedNumber = localStorage.getItem("my_ticket_number");
+    
+    // 💡 店員側で最新番号が取り消された場合、自分が持っている番号が「発行済み最新番号」より大きくなる可能性があります。
+    // その場合は、二重発券を防ぐためにクラウドの最新状態と同期して自動リセットをかける仕組みを入れます。
+    const lastRef = ref(db, "last_issued_number");
+    get(lastRef).then((snapshot) => {
+      const lastNumber = snapshot.val() || 0;
+      if (savedNumber && Number(savedNumber) <= lastNumber) {
+        setMyNumber(Number(savedNumber));
+      } else {
+        // 店員に取り消されていたら端末の記憶をクリアして再発券可能にする
+        localStorage.removeItem("my_ticket_number");
+        setMyNumber(null);
+      }
+    });
 
-  // 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
-  const currentRef = ref(db, "current_called_number");
-  const unsubscribe = onValue(currentRef, (snapshot) => {
-    const data = snapshot.val() || 0;
-    setCurrentNumber(data);
+    setIsHydrated(true);
 
-    // 👇 【追加】もし自分の番号が呼ばれたら、スマホで音を鳴らす！
-    const mySavedNumber = Number(localStorage.getItem("my_ticket_number"));
-    if (mySavedNumber && data >= mySavedNumber) {
-      // public/chime.mp3 を再生する
-      const audio = new Audio("/chime.mp3");
-      audio.play().catch((err) => {
-        console.log("ブラウザの制限により、画面を1回以上クリックしていないと音が出ない場合があります:", err);
-      });
-    }
-  });
+    // 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
+    const currentRef = ref(db, "current_called_number");
+    const unsubscribe = onValue(currentRef, (snapshot) => {
+      setCurrentNumber(snapshot.val() || 0);
+    });
 
-  return () => unsubscribe();
-}, []);
+    return () => unsubscribe();
+  }, []);
 
-  // 整理券を発券する（クラウド上の数値を+1して発券）
+  // 2️⃣ 整理券を発券する
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
 
     const lastIssuedRef = ref(db, "last_issued_number");
     const snapshot = await get(lastIssuedRef);
     const lastNumber = snapshot.val() || 0;
-    const nextTicketNumber = lastNumber + 1;
+    const nextTicketNumber = lastNumber + 1; // 💡 店員が戻していれば、ちゃんとその戻った番号（同じ番号）が次に出ます！
 
-    // クラウドの最新発券番号を更新
     await set(lastIssuedRef, nextTicketNumber);
     
-    // 自分のスマホに番号を記憶
     setMyNumber(nextTicketNumber);
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
-  };
-
-  const handleCancelTicket = () => {
-    setMyNumber(null);
-    localStorage.removeItem("my_ticket_number");
   };
 
   if (!isHydrated) return null;
@@ -74,7 +70,7 @@ export default function TicketPage() {
         {myNumber === null ? (
           <button
             onClick={handleIssueTicket}
-            className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md transition-all text-lg"
+            className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md text-lg"
           >
             整理券を発券する
           </button>
@@ -94,10 +90,7 @@ export default function TicketPage() {
                 </p>
               )}
             </div>
-
-            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto">
-              整理券を破棄してやり直す
-            </button>
+            {/* 💡 「破棄してやり直す」ボタンを完全に削除しました！ */}
           </div>
         )}
       </div>
