@@ -10,20 +10,30 @@ export default function TicketPage() {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    // 自分の番号はスマホ（ブラウザ）に保存しておく
-    const savedNumber = localStorage.getItem("my_ticket_number");
-    if (savedNumber) setMyNumber(Number(savedNumber));
-    setIsHydrated(true);
+  // 自分の番号はスマホ（ブラウザ）に保存しておく
+  const savedNumber = localStorage.getItem("my_ticket_number");
+  if (savedNumber) setMyNumber(Number(savedNumber));
+  setIsHydrated(true);
 
-    // 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
-    const currentRef = ref(db, "current_called_number");
-    const unsubscribe = onValue(currentRef, (snapshot) => {
-      const data = snapshot.val();
-      setCurrentNumber(data || 0);
-    });
+  // 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
+  const currentRef = ref(db, "current_called_number");
+  const unsubscribe = onValue(currentRef, (snapshot) => {
+    const data = snapshot.val() || 0;
+    setCurrentNumber(data);
 
-    return () => unsubscribe();
-  }, []);
+    // 👇 【追加】もし自分の番号が呼ばれたら、スマホで音を鳴らす！
+    const mySavedNumber = Number(localStorage.getItem("my_ticket_number"));
+    if (mySavedNumber && data >= mySavedNumber) {
+      // public/chime.mp3 を再生する
+      const audio = new Audio("/chime.mp3");
+      audio.play().catch((err) => {
+        console.log("ブラウザの制限により、画面を1回以上クリックしていないと音が出ない場合があります:", err);
+      });
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
 
   // 整理券を発券する（クラウド上の数値を+1して発券）
   const handleIssueTicket = async () => {
