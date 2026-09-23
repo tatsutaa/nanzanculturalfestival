@@ -7,8 +7,11 @@ export default function Home() {
         <h1 className="text-4xl font-bold">
           こんにちは! S2の展示へようこそ!
         </h1>
-        <a href="/numbered-tickets" className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+        <a href="/tickets" className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
           整理券の発行はこちら!
+        </a>
+        <a href="/ranking" className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+          点数のランキングはこちら!
         </a>
       </main>
     </div>
