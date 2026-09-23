@@ -14,7 +14,7 @@ export default function AdminTicketPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   // 🔑 設定したい管理用パスワード（好きな文字に変えてください）
-  const ADMIN_PASSWORD = "secret-admin-pass";
+  const ADMIN_PASSWORD = "Tacchan";
 
   useEffect(() => {
     // 💡 一度パスワードを正しく入力した人は、リロードしても鍵が開いたままにする記憶機能
