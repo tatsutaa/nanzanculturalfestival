@@ -10,18 +10,17 @@ export default function TicketPage() {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    // 1️⃣ 自分の番号を端末から取得
+    // 1️⃣ 自分の番号を端末の記憶から復元
     const savedNumber = localStorage.getItem("my_ticket_number");
     
-    // 💡 店員側で最新番号が取り消された場合、自分が持っている番号が「発行済み最新番号」より大きくなる可能性があります。
-    // その場合は、二重発券を防ぐためにクラウドの最新状態と同期して自動リセットをかける仕組みを入れます。
+    // 店員側で「システム全体のリセット」が行われたかチェック
     const lastRef = ref(db, "last_issued_number");
     get(lastRef).then((snapshot) => {
       const lastNumber = snapshot.val() || 0;
-      if (savedNumber && Number(savedNumber) <= lastNumber) {
+      // システムが動いていれば番号をセット、リセットされていればクリア
+      if (savedNumber && Number(savedNumber) <= lastNumber && lastNumber > 0) {
         setMyNumber(Number(savedNumber));
       } else {
-        // 店員に取り消されていたら端末の記憶をクリアして再発券可能にする
         localStorage.removeItem("my_ticket_number");
         setMyNumber(null);
       }
@@ -45,12 +44,22 @@ export default function TicketPage() {
     const lastIssuedRef = ref(db, "last_issued_number");
     const snapshot = await get(lastIssuedRef);
     const lastNumber = snapshot.val() || 0;
-    const nextTicketNumber = lastNumber + 1; // 💡 店員が戻していれば、ちゃんとその戻った番号（同じ番号）が次に出ます！
+    const nextTicketNumber = lastNumber + 1; 
 
     await set(lastIssuedRef, nextTicketNumber);
     
     setMyNumber(nextTicketNumber);
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
+  };
+
+  // 🛠️ 【復活＆安全化】お客様自身で発券を取り消す処理
+  const handleCancelTicket = () => {
+    if (confirm("この整理券を取り消しますか？（※一度取り消すと、元の番号には戻せません）")) {
+      // 💡 スマホ内の記憶だけを消去します。クラウドの全体番号は減らさないため、
+      // 次の人は飛ばされることなく「次の番号」が安全に発行されます。
+      setMyNumber(null);
+      localStorage.removeItem("my_ticket_number");
+    }
   };
 
   if (!isHydrated) return null;
@@ -63,7 +72,7 @@ export default function TicketPage() {
         <div className="text-center bg-gray-50 p-6 rounded-xl mb-6 border border-gray-100">
           <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在の呼び出し番号</p>
           <p className="text-5xl font-black text-blue-600">
-            {currentNumber === 0 ? "準備中" : `${currentNumber} 番`}
+            {currentNumber === 0 ? "未発券" : `${currentNumber} 番`}
           </p>
         </div>
 
@@ -90,7 +99,14 @@ export default function TicketPage() {
                 </p>
               )}
             </div>
-            {/* 💡 「破棄してやり直す」ボタンを完全に削除しました！ */}
+
+            {/* 🛠️ お客様用のキャンセルボタンを、安全なロジックで再配置 */}
+            <button 
+              onClick={handleCancelTicket} 
+              className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto transition-colors"
+            >
+              整理券を取り消す
+            </button>
           </div>
         )}
       </div>
