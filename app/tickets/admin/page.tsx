@@ -7,14 +7,14 @@ import { ref, onValue, set } from "firebase/database";
 export default function AdminTicketPage() {
   const [currentNumber, setCurrentNumber] = useState(0);
   const [lastIssued, setLastIssued] = useState(0);
-  const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); // 🛠️ キャンセルされた番号のリスト
+  const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); 
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [calculatorInput, setCalculatorInput] = useState(""); 
 
-  const ADMIN_PASSWORD = "Tacchan";
+  const ADMIN_PASSWORD = "secret-admin-pass";
 
   useEffect(() => {
     const savedAuth = localStorage.getItem("is_admin_authenticated");
@@ -27,11 +27,9 @@ export default function AdminTicketPage() {
     onValue(currentRef, (snapshot) => setCurrentNumber(snapshot.val() || 0));
     onValue(lastRef, (snapshot) => setLastIssued(snapshot.val() || 0));
     
-    // 🛠️ キャンセルされた番号を監視して配列に変換
     onValue(cancelRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // オブジェクトのキー（番号）を取り出して数値の配列にする
         const numbers = Object.keys(data).map(Number).sort((a, b) => a - b);
         setCancelledNumbers(numbers);
       } else {
@@ -82,7 +80,6 @@ export default function AdminTicketPage() {
 
     if (confirm(`最新の発行番号「${lastIssued}番」を取り消します。次回のお客様にはもう一度「${lastIssued}番」が発券されます。よろしいですか？`)) {
       set(ref(db, "last_issued_number"), lastIssued - 1);
-      // 💡 もし取り消した番号がキャンセル一覧に入っていたらそれも消去
       set(ref(db, `cancelled_numbers/${lastIssued}`), null);
     }
   };
@@ -99,11 +96,14 @@ export default function AdminTicketPage() {
     set(ref(db, "current_called_number"), currentNumber + 1);
   };
 
-  const handleResetAll = () => {
-    if (confirm("全ての整理券データをリセットして1番からに戻しますか？")) {
-      set(ref(db, "current_called_number"), 0);
-      set(ref(db, "last_issued_number"), 0);
-      set(ref(db, "cancelled_numbers"), null); // 💡 キャンセル履歴もリセット
+  // 🔄 データを全リセットする処理
+  const handleResetAll = async () => {
+    if (confirm("全ての整理券データをリセットして1番からに戻しますか？（キャンセルされた抜け番も全て消去されます）")) {
+      // 💡 Firebaseの各データをすべて初期状態に上書き、または削除(null)します
+      await set(ref(db, "current_called_number"), 0);
+      await set(ref(db, "last_issued_number"), 0);
+      await set(ref(db, "cancelled_numbers"), null); 
+      setCalculatorInput("");
     }
   };
 
@@ -147,7 +147,7 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
-        {/* 🛠️ 【新機能】キャンセルされた番号の表示エリア */}
+        {/* ❌ キャンセルされた番号の表示エリア */}
         <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4">
           <p className="text-xs text-orange-700 font-black mb-1.5">❌ お客様がキャンセルした番号（抜け番）:</p>
           {cancelledNumbers.length === 0 ? (
@@ -155,7 +155,7 @@ export default function AdminTicketPage() {
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {cancelledNumbers.map((num) => (
-                <span key={num} className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow-sm animate-fade-in">
+                <span key={num} className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow-sm">
                   {num}番
                 </span>
               ))}
@@ -181,11 +181,12 @@ export default function AdminTicketPage() {
 
           <div className="grid grid-cols-3 gap-2 mb-3">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-              <button key={num} onClick={() => handleKeyPress(num)} className="py-3 bg-gray-800 text-white font-black text-xl rounded-xl">{num}</button>
+              <button key={num} onClick={() => handleKeyPress(num)} className="py-3 bg-gray-800 text-white font-black text-xl rounded-xl transition-all active:scale-95">{num}</button>
             ))}
-            <button onClick={handleClear} className="py-3 bg-red-600 text-white font-black text-xl rounded-xl">C</button>
-            <button onClick={() => handleKeyPress("0")} className="py-3 bg-gray-800 text-white font-black text-xl rounded-xl">0</button>
-            <button onClick={handleDirectCall} className="py-3 bg-green-600 text-white font-black text-sm rounded-xl">Ref</button>
+            <button onClick={handleClear} className="py-3 bg-gray-600 text-white font-black text-xl rounded-xl transition-all active:scale-95">C</button>
+            <button onClick={() => handleKeyPress("0")} className="py-3 bg-gray-800 text-white font-black text-xl rounded-xl transition-all active:scale-95">0</button>
+            {/* 💡 ボタン内の文字を綺麗な「呼出」に整えました */}
+            <button onClick={handleDirectCall} className="py-3 bg-green-600 text-white font-bold text-sm rounded-xl transition-all active:scale-95">呼出</button>
           </div>
         </div>
 

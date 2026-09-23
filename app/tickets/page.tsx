@@ -10,12 +10,14 @@ export default function TicketPage() {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    // 1️⃣ 初回読み込み時に自分の番号を復元
     const savedNumber = localStorage.getItem("my_ticket_number");
     
     const lastRef = ref(db, "last_issued_number");
     get(lastRef).then((snapshot) => {
       const lastNumber = snapshot.val() || 0;
-      if (savedNumber && Number(savedNumber) <= lastNumber && lastNumber > 0) {
+      // 💡 クラウドの最新番号が0より大きく、かつ自分の番号が最新発行番号以下の場合のみ有効にする
+      if (savedNumber && lastNumber > 0 && Number(savedNumber) <= lastNumber) {
         setMyNumber(Number(savedNumber));
       } else {
         localStorage.removeItem("my_ticket_number");
@@ -25,14 +27,30 @@ export default function TicketPage() {
 
     setIsHydrated(true);
 
+    // 2️⃣ 📢 クラウド上の「現在の呼び出し番号」をリアルタイム監視
     const currentRef = ref(db, "current_called_number");
-    const unsubscribe = onValue(currentRef, (snapshot) => {
+    const unsubscribeCurrent = onValue(currentRef, (snapshot) => {
       setCurrentNumber(snapshot.val() || 0);
     });
 
-    return () => unsubscribe();
+    // 3️⃣ 📢 【新機能】クラウド上の「最新発行番号」もリアルタイム監視
+    // 💡 店員が全リセット（0番に戻す）したことを瞬時に検知して、お客様の画面もクリアします
+    const unsubscribeLast = onValue(lastRef, (snapshot) => {
+      const lastNumber = snapshot.val() || 0;
+      if (lastNumber === 0) {
+        // クラウドがリセットされたら、スマホ内の記憶も完全に消去して「未発券」に戻す
+        setMyNumber(null);
+        localStorage.removeItem("my_ticket_number");
+      }
+    });
+
+    return () => {
+      unsubscribeCurrent();
+      unsubscribeLast();
+    };
   }, []);
 
+  // 整理券を発券する
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
 
@@ -47,16 +65,14 @@ export default function TicketPage() {
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
 
-  // 🛠️ 【機能強化】キャンセルされた番号をクラウドに報告する処理
+  // お客様自身で発券を取り消す処理
   const handleCancelTicket = async () => {
     if (myNumber === null) return;
     
     if (confirm("この整理券を取り消しますか？（※一度取り消すと、元の番号には戻せません）")) {
-      // 💡 Firebaseの「cancelled_numbers/番号」の場所に true を書き込む
       const cancelRef = ref(db, `cancelled_numbers/${myNumber}`);
       await set(cancelRef, true);
 
-      // スマホ内の記憶を消去
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
     }
