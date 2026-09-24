@@ -10,6 +10,8 @@ export default function TicketPage() {
   const [callHistory, setCallHistory] = useState<number[]>([]); 
   const [isHydrated, setIsHydrated] = useState(false);
   
+  // 🔊 音声管理用の状態
+  const [isSoundEnabled, setIsSoundEnabled] = useState(false); // スイッチのON/OFF
   const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
@@ -32,14 +34,14 @@ export default function TicketPage() {
       if (mySavedNumber && data > 0) {
         const myNum = Number(mySavedNumber);
         
-        // 💡 【修正】つられ防止：現在の呼び出し番号が、自分の番号と「完全に一致」した瞬間だけ音を鳴らす！
-        if (data === myNum && lastPlayedNumber.current !== data) {
+        // 💡 自分の番号と一致、かつ未再生、かつ【音声スイッチがONのときだけ】鳴らす
+        if (data === myNum && lastPlayedNumber.current !== data && isSoundEnabled) {
           lastPlayedNumber.current = data;
           
           const audio = new Audio("/chime.mp3");
           audio.volume = 1.0;
           audio.play().catch((err) => {
-            console.log("ブラウザ制限：画面を一度タップしないと音が鳴らない場合があります", err);
+            console.log("音声再生エラー:", err);
           });
         }
       }
@@ -63,6 +65,7 @@ export default function TicketPage() {
         setMyNumber(null);
         localStorage.removeItem("my_ticket_number");
         lastPlayedNumber.current = null;
+        setIsSoundEnabled(false); // リセット時はスイッチもオフにする
       }
     });
 
@@ -71,8 +74,9 @@ export default function TicketPage() {
       unsubscribeHistory();
       unsubscribeLast();
     };
-  }, []);
+  }, [isSoundEnabled]); // 💡 スイッチの切り替えをリアルタイムに反映させるため監視対象に追加
 
+  // 整理券を発券する
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
     const lastIssuedRef = ref(db, "last_issued_number");
@@ -83,6 +87,27 @@ export default function TicketPage() {
     await set(lastIssuedRef, nextTicketNumber);
     setMyNumber(nextTicketNumber);
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
+  };
+
+  // 🛠️ 【新設】音声を有効化するスイッチ（トグル）が押された時の処理
+  const toggleSoundSwitch = () => {
+    if (!isSoundEnabled) {
+      // 💡 スイッチをONにした「人間の操作」に連動して、テスト音を小さく一瞬鳴らす
+      // これによりブラウザの自動再生ブロックが完全に解除されます！
+      const audioTest = new Audio("/chime.mp3");
+      audioTest.volume = 0.2; // テストなので少し小さめ
+      audioTest.play()
+        .then(() => {
+          setIsSoundEnabled(true);
+          alert("🔊 呼び出しチャイム音が有効になりました！このままお待ちください。");
+        })
+        .catch((err) => {
+          alert("❌ 音声の有効化に失敗しました。画面を一度タップしてからもう一度お試しください。");
+          console.log(err);
+        });
+    } else {
+      setIsSoundEnabled(false);
+    }
   };
 
   const handleCancelTicket = async () => {
@@ -110,7 +135,7 @@ export default function TicketPage() {
         </div>
 
         {callHistory.length > 1 && (
-          <div className="bg-gray-50/60 rounded-xl p-3 mb-6 border border-dashed border-gray-200">
+          <div className="bg-gray-50/60 rounded-xl p-3 mb-4 border border-dashed border-gray-200">
             <p className="text-[11px] text-gray-400 font-bold mb-1.5 text-center">📢 まえに呼んだ番号（履歴）</p>
             <div className="flex justify-center gap-3 text-sm font-bold text-gray-500">
               {callHistory.slice(1, 4).map((num, i) => (
@@ -119,6 +144,28 @@ export default function TicketPage() {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 🛠️ 【新設】音声有効化トグルスイッチの表示（発券済みの場合のみ表示） */}
+        {myNumber !== null && (
+          <div className={`p-4 rounded-xl mb-4 border flex items-center justify-between transition-all ${isSoundEnabled ? "bg-green-50 border-green-200" : "bg-red-50 border-red-100 animate-pulse"}`}>
+            <div className="flex flex-col">
+              <span className="text-xs font-black text-gray-700">
+                {isSoundEnabled ? "🔔 呼び出し音: 有効" : "🔕 呼び出し音: 無効"}
+              </span>
+              <span className="text-[10px] text-gray-400 font-bold mt-0.5">
+                {isSoundEnabled ? "順番が来るとチャイムが鳴ります" : "音が鳴りません！ONにしてください"}
+              </span>
+            </div>
+            
+            {/* スイッチのボタン（見た目） */}
+            <button
+              onClick={toggleSoundSwitch}
+              className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 cursor-pointer ${isSoundEnabled ? "bg-green-500 justify-end" : "bg-gray-300 justify-start"}`}
+            >
+              <div className="bg-white w-4 h-4 rounded-full shadow-md duration-300"></div>
+            </button>
           </div>
         )}
 
@@ -132,13 +179,11 @@ export default function TicketPage() {
             <p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
             
             <div className="mt-2 text-sm font-bold">
-              {/* 💡 【重要】つられバグ修正：大なり（>=）ではなく、完全に一致（===）したときだけ案内画面にする */}
               {currentNumber === myNumber ? (
                 <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">
                   📢 あなたの順番です！窓口へどうぞ！
                 </div>
               ) : currentNumber > myNumber ? (
-                // 💡 1番を呼ばずに2番を呼んだ場合、1番の人はここに移動し、つられて案内されなくなります
                 <div className="bg-gray-400 text-white p-3 rounded-lg text-xs">
                   ⚠️ あなたの番号（{myNumber}番）は呼び出しを通過しました
                 </div>
