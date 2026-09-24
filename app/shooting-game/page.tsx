@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue, set } from "firebase/database";
 
@@ -9,28 +9,47 @@ export default function ShootingGamePage() {
   const [gameState, setGameState] = useState<{ name: string; score: number; status: string }>({
     name: "",
     score: 0,
-    status: "waiting", // "waiting" (待機中)か "playing" (ゲーム中)
+    status: "waiting",
   });
+
+  // 🔊 音声の不要な連打や、初期読み込み時の誤再生を防ぐための記憶
+  const lastScoreRef = useRef<number>(0);
 
   useEffect(() => {
     // 📢 Firebaseの現在のゲーム状況（current_game）をリアルタイム監視
     const gameRef = ref(db, "current_game");
-    onValue(gameRef, (snapshot) => {
+    const unsubscribe = onValue(gameRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setGameState(data);
+
+        // 💡 【新機能】スコアが以前の点数より増えた瞬間、かつゲーム中の場合
+        if (data.status === "playing" && data.score > lastScoreRef.current) {
+          // public/hit.mp3 を再生
+          const audio = new Audio("/hit.mp3");
+          audio.volume = 1.0; // 音量MAX
+          audio.play().catch((err) => {
+            console.log("ブラウザ制限：画面を一度クリックしていないと音が鳴らない場合があります:", err);
+          });
+        }
+        // 今のスコアを記憶に保存
+        lastScoreRef.current = data.score;
       } else {
         setGameState({ name: "", score: 0, status: "waiting" });
+        lastScoreRef.current = 0;
       }
     });
+
+    return () => unsubscribe();
   }, []);
 
-  // 🚀 ゲームを開始する処理
   const handleStartGame = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) return alert("名前を入力してください");
 
-    // Firebaseの情報を「プレイ中、スコア0点」に書き換える（ラズパイがこれを検知します）
+    // ゲーム開始時は一度記憶を0にリセット
+    lastScoreRef.current = 0;
+
     await set(ref(db, "current_game"), {
       name: playerName,
       score: 0,
@@ -38,17 +57,14 @@ export default function ShootingGamePage() {
     });
   };
 
-  // 🏁 ゲームを終了してランキングに記録する処理
   const handleEndGame = async () => {
     if (gameState.score > 0) {
-      // 現在のスコアを「ranking」の部屋へ保存
       await set(ref(db, `ranking/${gameState.name}`), {
         name: gameState.name,
         score: gameState.score
       });
       alert(`🎉 ${gameState.name}さんのスコア（${gameState.score}点）をランキングに保存しました！`);
     }
-    // 現在のゲームをリセットして待機中に戻す
     await set(ref(db, "current_game"), null);
     setPlayerName("");
   };
@@ -59,10 +75,9 @@ export default function ShootingGamePage() {
         <h1 className="text-2xl font-black text-amber-400 mb-2 flex items-center justify-center gap-2">
           🔫 リアルタイム・的当てマシン
         </h1>
-        <p className="text-xs text-slate-400 mb-6">的にレーザーが当たると画面の点数がリアルタイムに増えます</p>
+        <p className="text-xs text-slate-400 mb-6">的にレーザーが当たると画面の点数と効果音が連動します</p>
 
         {gameState.status === "waiting" ? (
-          /* 👤 名前入力・スタート画面 */
           <form onSubmit={handleStartGame} className="flex flex-col gap-4">
             <input
               type="text"
@@ -76,7 +91,6 @@ export default function ShootingGamePage() {
             </button>
           </form>
         ) : (
-          /* 📊 スコアリアルタイム加算画面 */
           <div className="animate-fade-in">
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
               <p className="text-xs text-slate-400 font-bold tracking-wider">NOW PLAYING</p>
@@ -85,7 +99,7 @@ export default function ShootingGamePage() {
 
             <div className="my-8">
               <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">現在のスコア</p>
-              <p className="text-7xl font-black text-emerald-400 font-mono tracking-tighter drop-shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-bounce mt-2">
+              <p className="text-7xl font-black text-emerald-400 font-mono tracking-tighter drop-shadow-[0_0_15px_rgba(52,211,153,0.3)] mt-2">
                 {gameState.score} <span className="text-xl text-slate-400">点</span>
               </p>
             </div>
