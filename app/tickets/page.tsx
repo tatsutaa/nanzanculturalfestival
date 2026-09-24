@@ -11,11 +11,18 @@ export default function TicketPage() {
   const [isHydrated, setIsHydrated] = useState(false);
   
   // 🔊 音声管理用の状態
-  const [isSoundEnabled, setIsSoundEnabled] = useState(false); // スイッチのON/OFF
+  const [isSoundEnabled, setIsSoundEnabled] = useState(false); 
   const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
     const savedNumber = localStorage.getItem("my_ticket_number");
+    
+    // 💾 【新機能】リロードした時に、以前スイッチをONにしていたかを記憶から復元する
+    const savedSoundSetting = localStorage.getItem("is_sound_enabled");
+    if (savedSoundSetting === "true") {
+      setIsSoundEnabled(true);
+    }
+
     const lastRef = ref(db, "last_issued_number");
     const historyRef = ref(db, "call_history");
     const currentRef = ref(db, "current_called_number");
@@ -34,7 +41,6 @@ export default function TicketPage() {
       if (mySavedNumber && data > 0) {
         const myNum = Number(mySavedNumber);
         
-        // 💡 自分の番号と一致、かつ未再生、かつ【音声スイッチがONのときだけ】鳴らす
         if (data === myNum && lastPlayedNumber.current !== data && isSoundEnabled) {
           lastPlayedNumber.current = data;
           
@@ -64,8 +70,9 @@ export default function TicketPage() {
       if (lastNumber === 0) {
         setMyNumber(null);
         localStorage.removeItem("my_ticket_number");
+        localStorage.removeItem("is_sound_enabled"); // 💡 全リセット時は音声の記憶も消去
         lastPlayedNumber.current = null;
-        setIsSoundEnabled(false); // リセット時はスイッチもオフにする
+        setIsSoundEnabled(false); 
       }
     });
 
@@ -74,7 +81,7 @@ export default function TicketPage() {
       unsubscribeHistory();
       unsubscribeLast();
     };
-  }, [isSoundEnabled]); // 💡 スイッチの切り替えをリアルタイムに反映させるため監視対象に追加
+  }, [isSoundEnabled]); 
 
   // 整理券を発券する
   const handleIssueTicket = async () => {
@@ -89,16 +96,16 @@ export default function TicketPage() {
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
 
-  // 🛠️ 【新設】音声を有効化するスイッチ（トグル）が押された時の処理
+  // 🛠️ 【修正】有効化スイッチの処理（記憶機能の連動）
   const toggleSoundSwitch = () => {
     if (!isSoundEnabled) {
-      // 💡 スイッチをONにした「人間の操作」に連動して、テスト音を小さく一瞬鳴らす
-      // これによりブラウザの自動再生ブロックが完全に解除されます！
       const audioTest = new Audio("/chime.mp3");
-      audioTest.volume = 0.2; // テストなので少し小さめ
+      audioTest.volume = 0.2; 
       audioTest.play()
         .then(() => {
           setIsSoundEnabled(true);
+          // 💾 ブラウザの記憶に「音声をONにした」という事実を保存します
+          localStorage.setItem("is_sound_enabled", "true");
           alert("🔊 呼び出しチャイム音が有効になりました！このままお待ちください。");
         })
         .catch((err) => {
@@ -107,6 +114,7 @@ export default function TicketPage() {
         });
     } else {
       setIsSoundEnabled(false);
+      localStorage.removeItem("is_sound_enabled"); // OFFにした時は記憶を消去
     }
   };
 
@@ -117,6 +125,7 @@ export default function TicketPage() {
       await set(cancelRef, true);
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
+      localStorage.removeItem("is_sound_enabled");
     }
   };
 
@@ -130,7 +139,7 @@ export default function TicketPage() {
         <div className="text-center bg-gray-50 p-6 rounded-xl mb-4 border border-gray-100">
           <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在お呼び出し中の番号</p>
           <p className="text-6xl font-black text-blue-600">
-            {currentNumber === 0 ? "未" : `${currentNumber} 番`}
+            {currentNumber === 0 ? "未発券" : `${currentNumber} 番`}
           </p>
         </div>
 
@@ -147,7 +156,6 @@ export default function TicketPage() {
           </div>
         )}
 
-        {/* 🛠️ 【新設】音声有効化トグルスイッチの表示（発券済みの場合のみ表示） */}
         {myNumber !== null && (
           <div className={`p-4 rounded-xl mb-4 border flex items-center justify-between transition-all ${isSoundEnabled ? "bg-green-50 border-green-200" : "bg-red-50 border-red-100 animate-pulse"}`}>
             <div className="flex flex-col">
@@ -159,7 +167,6 @@ export default function TicketPage() {
               </span>
             </div>
             
-            {/* スイッチのボタン（見た目） */}
             <button
               onClick={toggleSoundSwitch}
               className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 cursor-pointer ${isSoundEnabled ? "bg-green-500 justify-end" : "bg-gray-300 justify-start"}`}
