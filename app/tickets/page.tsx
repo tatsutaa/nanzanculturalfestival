@@ -5,61 +5,45 @@ import { db } from "../firebase";
 import { ref, onValue, set, get } from "firebase/database";
 
 export default function TicketPage() {
-  const [currentNumber, setCurrentNumber] = useState(0);
+  const [calledNumbers, setCalledNumbers] = useState<number[]>([]); // 💡 呼び出し中の番号リスト
   const [myNumber, setMyNumber] = useState<number | null>(null);
-  const [callHistory, setCallHistory] = useState<number[]>([]); 
   const [isHydrated, setIsHydrated] = useState(false);
   
-  // 💡 【修正】あえてlocalStorageには保存せず、リロード時は必ず「false(無効)」からスタートします
   const [isSoundEnabled, setIsSoundEnabled] = useState(false); 
   const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
     const savedNumber = localStorage.getItem("my_ticket_number");
-    const lastRef = ref(db, "last_issued_number");
-    const historyRef = ref(db, "call_history");
-    const currentRef = ref(db, "current_called_number");
     
     if (savedNumber) {
       setMyNumber(Number(savedNumber));
     }
     setIsHydrated(true);
 
-    // 📢 1. 現在の呼び出し番号を監視 ＋ 🔊 音を鳴らす
-    const unsubscribeCurrent = onValue(currentRef, (snapshot) => {
-      const data = snapshot.val() || 0;
-      setCurrentNumber(data);
+    // 📢 1. 現在呼び出し中の複数リストをリアルタイム監視 ＋ 🔊 音を鳴らす
+    const unsubscribeCurrent = onValue(ref(db, "calling_now_list"), (snapshot) => {
+      const data = snapshot.val();
+      const list: number[] = data ? Object.values(data).map(Number) : [];
+      setCalledNumbers(list);
 
+      // スマホ内の自分の番号をチェック
       const mySavedNumber = localStorage.getItem("my_ticket_number");
-      if (mySavedNumber && data > 0) {
+      if (mySavedNumber && list.length > 0) {
         const myNum = Number(mySavedNumber);
         
-        // スイッチがONのときだけ鳴らす
-        if (data === myNum && lastPlayedNumber.current !== data && isSoundEnabled) {
-          lastPlayedNumber.current = data;
+        // 💡 呼び出し中リストの中に「自分の番号」が含まれた瞬間、かつ未再生、かつスイッチONのとき
+        if (list.includes(myNum) && lastPlayedNumber.current !== myNum && isSoundEnabled) {
+          lastPlayedNumber.current = myNum;
           
           const audio = new Audio("/chime.mp3");
           audio.volume = 1.0;
-          audio.play().catch((err) => {
-            console.log("音声再生エラー:", err);
-          });
+          audio.play().catch((err) => console.log("音声再生エラー:", err));
         }
       }
     });
 
-    // 📢 2. 独立した呼び出し履歴をリアルタイム受信
-    const unsubscribeHistory = onValue(historyRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const numbers = Object.values(data).map(Number).filter((n) => !isNaN(n));
-        setCallHistory(numbers);
-      } else {
-        setCallHistory([]);
-      }
-    });
-
-    // 📢 3. 全リセットの監視
-    const unsubscribeLast = onValue(lastRef, (snapshot) => {
+    // 📢 2. 全リセットの監視
+    const unsubscribeLast = onValue(ref(db, "last_issued_number"), (snapshot) => {
       const lastNumber = snapshot.val();
       if (lastNumber === 0) {
         setMyNumber(null);
@@ -71,12 +55,10 @@ export default function TicketPage() {
 
     return () => {
       unsubscribeCurrent();
-      unsubscribeHistory();
       unsubscribeLast();
     };
   }, [isSoundEnabled]); 
 
-  // 整理券を発券する
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
     const lastIssuedRef = ref(db, "last_issued_number");
@@ -89,36 +71,22 @@ export default function TicketPage() {
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
 
-  // 音声を有効化するスイッチ（トグル）が押された時の処理
   const toggleSoundSwitch = () => {
     if (!isSoundEnabled) {
-      // 💡 ユーザー自身にボタンを押してもらうことで、ブラウザの音ブロックを100%確実に解除します！
       const audioTest = new Audio("/chime.mp3");
       audioTest.volume = 0.3; 
       audioTest.play()
-        .then(() => {
-          setIsSoundEnabled(true);
-        })
-        .catch((err) => {
-          alert("❌ 画面のどこかを1回タップしてから、もう一度スイッチを押してください。");
-          console.log(err);
-        });
+        .then(() => setIsSoundEnabled(true))
+        .catch((err) => alert("❌ 画面を一度タップしてからもう一度お試しください。"));
     } else {
       setIsSoundEnabled(false);
     }
   };
 
-  const handleCancelTicket = async () => {
-    if (myNumber === null) return;
-    if (confirm("この整理券を取り消しますか？")) {
-      const cancelRef = ref(db, `cancelled_numbers/${myNumber}`);
-      await set(cancelRef, true);
-      setMyNumber(null);
-      localStorage.removeItem("my_ticket_number");
-    }
-  };
-
   if (!isHydrated) return null;
+
+  // 💡 自分の番号が現在呼び出し中リストに含まれているか
+  const isMyTurn = myNumber !== null && calledNumbers.includes(myNumber);
 
   return (
     <div className="max-w-md mx-auto min-h-screen p-6 bg-blue-50/50 flex flex-col justify-center">
@@ -127,42 +95,20 @@ export default function TicketPage() {
         
         <div className="text-center bg-gray-50 p-6 rounded-xl mb-4 border border-gray-100">
           <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在お呼び出し中の番号</p>
-          <p className="text-6xl font-black text-blue-600">
-            {currentNumber === 0 ? "未" : `${currentNumber} 番`}
+          <p className="text-4xl font-black text-blue-600">
+            {calledNumbers.length === 0 ? "未" : calledNumbers.map(n => `${n}番 `)}
           </p>
         </div>
 
-        {callHistory.length > 1 && (
-          <div className="bg-gray-50/60 rounded-xl p-3 mb-4 border border-dashed border-gray-200">
-            <p className="text-[11px] text-gray-400 font-bold mb-1.5 text-center">📢 まえに呼んだ番号（履歴）</p>
-            <div className="flex justify-center gap-3 text-sm font-bold text-gray-500">
-              {callHistory.slice(1, 4).map((num, i) => (
-                <span key={i} className="bg-white px-3 py-1 rounded-md shadow-sm border border-gray-100">
-                  {num} 番
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* 💡 履歴表示エリア（callHistory）はきれいに全削除しました！ */}
 
-        {/* 🛠️ 【UIデザイン改善】リロードされたら必ず赤く点滅し、お客様に「音を有効にしてね」と促す親切設計 */}
         {myNumber !== null && (
           <div className={`p-4 rounded-xl mb-4 border flex items-center justify-between transition-all ${isSoundEnabled ? "bg-green-50 border-green-200" : "bg-red-50 border-red-100 animate-pulse"}`}>
             <div className="flex flex-col">
-              <span className="text-xs font-black text-gray-700">
-                {isSoundEnabled ? "🔔 呼び出し音: 有効" : "🔕 呼び出し音: 無効"}
-              </span>
-              <span className="text-[10px] text-gray-400 font-bold mt-0.5">
-                {isSoundEnabled ? "順番が来るとチャイムが鳴ります" : "リロードされました！音を鳴らすにはONにしてください"}
-              </span>
+              <span className="text-xs font-black text-gray-700">{isSoundEnabled ? "🔔 呼び出し音: 有効" : "🔕 呼び出し音: 無効"}</span>
+              <span className="text-[10px] text-gray-400 font-bold mt-0.5">{isSoundEnabled ? "順番が来るとチャイムが鳴ります" : "音を鳴らすにはONにしてください"}</span>
             </div>
-            
-            <button
-              onClick={toggleSoundSwitch}
-              className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 cursor-pointer ${isSoundEnabled ? "bg-green-500 justify-end" : "bg-gray-300 justify-start"}`}
-            >
-              <div className="bg-white w-4 h-4 rounded-full shadow-md duration-300"></div>
-            </button>
+            <button onClick={toggleSoundSwitch} className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 ${isSoundEnabled ? "bg-green-500 justify-end" : "bg-gray-300 justify-start"}`}><div className="bg-white w-4 h-4 rounded-full shadow-md"></div></button>
           </div>
         )}
 
@@ -176,24 +122,16 @@ export default function TicketPage() {
             <p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
             
             <div className="mt-2 text-sm font-bold">
-              {currentNumber === myNumber ? (
+              {isMyTurn ? (
                 <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">
                   📢 あなたの順番です！窓口へどうぞ！
                 </div>
-              ) : currentNumber > myNumber ? (
-                <div className="bg-gray-400 text-white p-3 rounded-lg text-xs">
-                  ⚠️ あなたの番号（{myNumber}番）は呼び出しを通過しました
-                </div>
               ) : (
-                <p className="text-gray-600">
-                  あと <span className="text-xl text-red-500 font-black">{myNumber - currentNumber}人</span> 待ちです
+                <p className="text-gray-500">
+                  {calledNumbers.length > 0 ? "他の番号をお呼び出し中です。しばらくお待ちください。" : "呼び出し開始までそのままお待ちください。"}
                 </p>
               )}
             </div>
-
-            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto">
-              整理券を取り消す
-            </button>
           </div>
         )}
       </div>
