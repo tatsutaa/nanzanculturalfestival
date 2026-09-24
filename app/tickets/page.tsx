@@ -6,7 +6,7 @@ import { ref, onValue, set, get } from "firebase/database";
 
 export default function TicketPage() {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
-  const [lastIssued, setLastIssued] = useState(0); 
+  const [issuedTickets, setIssuedTickets] = useState<number[]>([]); // 💡 本当に存在するチケット
   const [myNumber, setMyNumber] = useState<number | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   
@@ -18,7 +18,7 @@ export default function TicketPage() {
     if (savedNumber) setMyNumber(Number(savedNumber));
     setIsHydrated(true);
 
-    // 📢 1. 現在呼び出し中の複数リストを監視 ＋ 🔊 音を鳴らす
+    // 📢 1. 現在呼び出し中のリストを監視 ＋ 🔊 音を鳴らす
     onValue(ref(db, "calling_now_list"), (snapshot) => {
       const data = snapshot.val();
       const list: number[] = data ? Object.values(data).map(Number) : [];
@@ -31,40 +31,34 @@ export default function TicketPage() {
           lastPlayedNumber.current = myNum;
           const audio = new Audio("/chime.mp3");
           audio.volume = 1.0;
-          audio.play().catch((err) => console.log("音声再生エラー:", err));
+          audio.play().catch((err) => console.log(err));
         }
       }
     });
 
-    // 📢 2. 発行済みの最新番号を監視
-    onValue(ref(db, "last_issued_number"), (snapshot) => {
-      const lastNumber = snapshot.val() || 0;
-      setLastIssued(lastNumber);
-      if (lastNumber === 0) {
-        setMyNumber(null);
-        localStorage.removeItem("my_ticket_number");
-        localStorage.removeItem("is_sound_enabled"); 
-        lastPlayedNumber.current = null;
-        setIsSoundEnabled(false); 
-      }
-    });
-
-    // 📢 3. 【連動強化】店員側から自分の番号が「発券取消」されたかをリアルタイム監視
-    // 💡 店員が「issued_tickets/自分の番号」を削除した瞬間、この画面も連動して「未発券」に戻します
+    // 📢 2. 発行済みのリアルタイムリストを監視（ズレ連動対策）
     onValue(ref(db, "issued_tickets"), (snapshot) => {
+      const data = snapshot.val();
       const mySavedNumber = localStorage.getItem("my_ticket_number");
-      if (mySavedNumber) {
-        const myNum = Number(mySavedNumber);
-        const data = snapshot.val();
-        
-        // データベース上に自分のチケットが存在しない（消された）場合
-        if (!data || !data[myNum]) {
+      
+      if (data) {
+        const activeList = Object.keys(data).map(Number).sort((a, b) => a - b);
+        setIssuedTickets(activeList);
+
+        // 💡 店員に自分の番号をピンポイントで消されたら、即座に「未発券」に戻す
+        if (mySavedNumber && !data[Number(mySavedNumber)]) {
           setMyNumber(null);
           localStorage.removeItem("my_ticket_number");
           localStorage.removeItem("is_sound_enabled");
-          lastPlayedNumber.current = null;
           setIsSoundEnabled(false);
         }
+      } else {
+        // クラウドが空（全リセット）のとき
+        setIssuedTickets([]);
+        setMyNumber(null);
+        localStorage.removeItem("my_ticket_number");
+        localStorage.removeItem("is_sound_enabled");
+        setIsSoundEnabled(false);
       }
     });
   }, [isSoundEnabled]); 
@@ -76,7 +70,7 @@ export default function TicketPage() {
     const lastNumber = snapshot.val() || 0;
     const nextTicketNumber = lastNumber + 1; 
 
-    // クラウド上にチケット情報を登録
+    // クラウド上にこの番号の席をしっかり独立して確保
     await set(ref(db, `issued_tickets/${nextTicketNumber}`), true);
     await set(lastIssuedRef, nextTicketNumber);
     
@@ -90,34 +84,26 @@ export default function TicketPage() {
       audioTest.volume = 0.3; 
       audioTest.play()
         .then(() => setIsSoundEnabled(true))
-        .catch((err) => alert("❌ 画面を一度タップしてからもう一度お試しください。"));
+        .catch(() => alert("❌ 画面を一度タップしてからもう一度お試しください。"));
     } else {
       setIsSoundEnabled(false);
     }
   };
 
-  // お客様自身で発券を取り消す（キャンセルする）処理
   const handleCancelTicket = async () => {
     if (myNumber === null) return;
-    
-    if (confirm("この整理券を取り消しますか？（※一度取り消すと、元の番号には戻せません）")) {
-      const cancelRef = ref(db, `cancelled_numbers/${myNumber}`);
-      await set(cancelRef, true);
-      
-      // 💡 クラウド上の発券データからも削除
-      await set(ref(db, `issued_tickets/${myNumber}`), null);
-
+    if (confirm("この整理券を取り消しますか？")) {
+      await set(ref(db, `cancelled_numbers/${myNumber}`), true);
+      await set(ref(db, `issued_tickets/${myNumber}`), null); // 自分の意思で消滅させる
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
       localStorage.removeItem("is_sound_enabled");
-      lastPlayedNumber.current = null;
       setIsSoundEnabled(false);
     }
   };
 
   if (!isHydrated) return null;
   const isMyTurn = myNumber !== null && calledNumbers.includes(myNumber);
-  const allIssuedNumbers = Array.from({ length: lastIssued }, (_, i) => i + 1);
 
   return (
     <div className="max-w-md mx-auto min-h-screen p-6 bg-blue-50/50 flex flex-col justify-center">
@@ -144,17 +130,15 @@ export default function TicketPage() {
           <div className="text-center border-2 border-dashed border-blue-200 p-5 rounded-xl bg-blue-50/30 mb-4">
             <p className="text-xs text-gray-500 font-bold">あなたの整理券番号</p><p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
             <div className="mt-2 text-sm font-bold">{isMyTurn ? <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">📢 あなたの順番です！窓口へどうぞ！</div> : <p className="text-gray-500">{calledNumbers.length > 0 ? "他の番号をお呼び出し中です。しばらくお待ちください。" : "呼び出し開始までそのままお待ちください。"}</p>}</div>
-            
-            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto transition-colors">
-              整理券を取り消す
-            </button>
+            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto">整理券を取り消す</button>
           </div>
         )}
 
+        {/* 📊 発行済み羅列（バグ修正完了版） */}
         <div className="border-t pt-4 mt-2">
           <p className="text-xs font-black text-gray-400 mb-2.5 text-center tracking-wider">📋 本日発券済みのすべての番号</p>
           <div className="flex flex-wrap justify-center gap-2 max-h-40 overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
-            {allIssuedNumbers.length === 0 ? <p className="text-xs text-gray-400 italic py-2">まだ発券されていません</p> : allIssuedNumbers.map((num) => {
+            {issuedTickets.length === 0 ? <p className="text-xs text-gray-400 italic py-2">まだ発券されていません</p> : issuedTickets.map((num) => {
                 const isCalling = calledNumbers.includes(num);
                 const isMyNum = myNumber === num;
                 return <span key={num} className={`text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm border transition-all ${isCalling ? "bg-green-500 text-white border-green-600 animate-pulse font-black" : isMyNum ? "bg-blue-600 text-white border-blue-700 font-black ring-2 ring-blue-300" : "bg-white text-gray-600 border-gray-200"}`}>{num}番 {isCalling && "📢"} {isMyNum && "⭐"}</span>;
