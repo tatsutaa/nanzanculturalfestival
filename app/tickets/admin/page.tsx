@@ -24,7 +24,7 @@ export default function AdminTicketPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === "secret-admin-pass") {
+    if (passwordInput === "Tacchan") {
       setIsAuthenticated(true);
       localStorage.setItem("is_admin_authenticated", "true");
     } else { setErrorMsg("❌ パスワード不一致"); }
