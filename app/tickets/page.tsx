@@ -122,7 +122,7 @@ export default function TicketPage() {
         <div className="text-center bg-gray-50 p-6 rounded-xl mb-4 border border-gray-100">
           <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在お呼び出し中の番号</p>
           <div className="flex flex-wrap justify-center gap-2 mt-1">
-            {calledNumbers.length === 0 ? <span className="text-4xl font-black text-blue-600">未発券</span> : calledNumbers.map(n => <span key={n} className="text-4xl font-black text-blue-600 bg-white px-3 py-1 rounded-xl shadow-sm border border-blue-100 animate-pulse">{n}番</span>)}
+            {calledNumbers.length === 0 ? <span className="text-4xl font-black text-blue-600">なし</span> : calledNumbers.map(n => <span key={n} className="text-4xl font-black text-blue-600 bg-white px-3 py-1 rounded-xl shadow-sm border border-blue-100 animate-pulse">{n}番</span>)}
           </div>
         </div>
 
