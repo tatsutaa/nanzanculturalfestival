@@ -7,21 +7,34 @@ import { ref, onValue, set, get } from "firebase/database";
 export default function AdminTicketPage() {
   const [lastIssued, setLastIssued] = useState(0);
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
+  const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); // 💡 客側キャンセルリスト
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [calculatorInput, setCalculatorInput] = useState(""); 
   const [errorMsg, setErrorMsg] = useState("");
 
-  const ADMIN_PASSWORD = "secret-admin-pass";
+  const ADMIN_PASSWORD = "Tacchan";
 
   useEffect(() => {
     if (localStorage.getItem("is_admin_authenticated") === "true") setIsAuthenticated(true);
     onValue(ref(db, "last_issued_number"), (s) => setLastIssued(s.val() || 0));
     
-    // 💡 呼び出し中の番号リストをリアルタイム受信
+    // 📢 呼び出し中の番号リストをリアルタイム受信
     onValue(ref(db, "calling_now_list"), (s) => {
       const data = s.val();
       setCalledNumbers(data ? Object.values(data).map(Number) : []);
+    });
+
+    // 📢 【バグ修正】お客様側からのキャンセル報告をリアルタイムで受信して配列化
+    onValue(ref(db, "cancelled_numbers"), (s) => {
+      const data = s.val();
+      if (data) {
+        // クラウドのオブジェクトから、trueになっている番号（キー）だけを抽出して並び替え
+        const numbers = Object.keys(data).map(Number).sort((a, b) => a - b);
+        setCancelledNumbers(numbers);
+      } else {
+        setCancelledNumbers([]);
+      }
     });
   }, []);
 
@@ -40,7 +53,6 @@ export default function AdminTicketPage() {
     await set(ref(db, "call_history"), updated);
   };
 
-  // 1️⃣ 指定した番号を「呼び出し中」に追加する処理
   const executeCall = async (num: number) => {
     if (!num || num <= 0 || num > lastIssued) return alert("正しい発券済みの番号を指定してください");
     const listRef = ref(db, "calling_now_list");
@@ -50,10 +62,11 @@ export default function AdminTicketPage() {
       const updated = [...currentList, num].sort((a, b) => a - b);
       await set(listRef, updated);
       await updateHistory(num);
+      // 💡 もしキャンセル抜け番リストに載っていた場合は、呼び出したのでリストから消去する
+      await set(ref(db, `cancelled_numbers/${num}`), null);
     }
   };
 
-  // 2️⃣ 指定した番号の「呼び出しを取り消す」処理
   const executeUndoCall = async (num: number) => {
     if (confirm(`${num}番の呼び出しを取り消しますか？`)) {
       const listRef = ref(db, "calling_now_list");
@@ -64,7 +77,6 @@ export default function AdminTicketPage() {
     }
   };
 
-  // 3️⃣ 指定した番号の「発券自体を取り消す」処理
   const executeUndoIssue = async (num: number) => {
     if (calledNumbers.includes(num)) return alert("呼び出し中の番号は発券取り消しできません。先に呼び出しを取り消してください。");
     if (confirm(`「${num}番」の発券を取り消します。この番号を持っているお客様の画面は自動的に「未発券」に戻ります。よろしいですか？`)) {
@@ -76,13 +88,12 @@ export default function AdminTicketPage() {
       const currentH = hSnapshot.val() ? Object.values(hSnapshot.val()).map(Number) : [];
       const updatedH = currentH.filter(n => n !== num);
       await set(historyRef, updatedH.length ? updatedH : null);
-      await set(ref(db, `cancelled_numbers/${num}`), true);
+      // 店員側からの発券取消なので、客側キャンセル報告フラグはクリアする
+      await set(ref(db, `cancelled_numbers/${num}`), null);
     }
   };
 
-  // 📢 連番で次を自動で呼び出す処理
   const handleNextCall = async () => {
-    // 💡 呼び出し中リストの「一番大きい数字」の次、または誰も呼ばれていなければ1番からスタート
     const maxCalled = calledNumbers.length > 0 ? Math.max(...calledNumbers) : 0;
     const nextNumber = maxCalled + 1;
     if (nextNumber <= lastIssued) {
@@ -130,6 +141,22 @@ export default function AdminTicketPage() {
           <div className="text-center bg-gray-50 p-3 rounded-xl border"><p className="text-xs text-gray-400 font-bold">現在呼び出し中の数</p><p className="text-3xl font-black text-gray-700">{calledNumbers.length} 組</p></div>
         </div>
 
+        {/* 🛠️ 【バグ修正】お客様側からキャンセルされた「抜け番」をリアルタイム表示するエリア */}
+        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4">
+          <p className="text-xs text-orange-700 font-black mb-1.5">❌ お客様がキャンセルした番号（抜け番）:</p>
+          {cancelledNumbers.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">現在キャンセルはありません</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {cancelledNumbers.map((num) => (
+                <span key={num} className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                  {num}番
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-100">
           <p className="text-[10px] text-gray-400 font-black mb-1.5 text-center tracking-wider">📊 発行済みバッジ一覧（緑が現在呼び出し中）</p>
           <div className="flex flex-wrap justify-center gap-1.5 max-h-24 overflow-y-auto">
@@ -156,7 +183,7 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
-        <div className="border-t pt-3">
+                <div className="border-t pt-3">
           <p className="text-xs font-black text-gray-500 mb-2">📋 各番号の操作（三択リスト）</p>
           <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
             {allActiveNumbers.length === 0 ? (
@@ -178,9 +205,6 @@ export default function AdminTicketPage() {
             )}
           </div>
         </div>
-
-        <button onClick={handleNextCall} className="w-full mt-6 py-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-base mb-6">📢 次の連番を呼び出す</button>
-        <div className="border-t mt-4 pt-3 text-center"><button onClick={handleResetAll} className="text-gray-400 text-xs font-bold underline">🛠️ データを全リセット</button></div>
       </div>
     </div>
   );
