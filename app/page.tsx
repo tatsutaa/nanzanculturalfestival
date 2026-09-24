@@ -66,7 +66,7 @@ export default function Home() {
         {/* 👨‍🍳 店員専用の隠しリンク */}
         <div className="mt-8 border-t border-white/5 pt-4">
           <a 
-            href="/ticket/admin" 
+            href="/tickets/admin" 
             className="text-[11px] text-slate-400 hover:text-red-400 font-bold tracking-wider transition-colors"
           >
             ⚙️ 店員専用管理画面（パスワード保護）
