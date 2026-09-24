@@ -12,27 +12,19 @@ export default function ShootingGamePage() {
     status: "waiting",
   });
 
-  // 🔊 音声の不要な連打や、初期読み込み時の誤再生を防ぐための記憶
   const lastScoreRef = useRef<number>(0);
 
   useEffect(() => {
-    // 📢 Firebaseの現在のゲーム状況（current_game）をリアルタイム監視
     const gameRef = ref(db, "current_game");
     const unsubscribe = onValue(gameRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setGameState(data);
-
-        // 💡 【新機能】スコアが以前の点数より増えた瞬間、かつゲーム中の場合
         if (data.status === "playing" && data.score > lastScoreRef.current) {
-          // public/hit.mp3 を再生
           const audio = new Audio("/hit.mp3");
-          audio.volume = 1.0; // 音量MAX
-          audio.play().catch((err) => {
-            console.log("ブラウザ制限：画面を一度クリックしていないと音が鳴らない場合があります:", err);
-          });
+          audio.volume = 1.0;
+          audio.play().catch((err) => console.log("音声再生制限:", err));
         }
-        // 今のスコアを記憶に保存
         lastScoreRef.current = data.score;
       } else {
         setGameState({ name: "", score: 0, status: "waiting" });
@@ -47,7 +39,6 @@ export default function ShootingGamePage() {
     e.preventDefault();
     if (!playerName.trim()) return alert("名前を入力してください");
 
-    // ゲーム開始時は一度記憶を0にリセット
     lastScoreRef.current = 0;
 
     await set(ref(db, "current_game"), {
@@ -57,11 +48,17 @@ export default function ShootingGamePage() {
     });
   };
 
+  // 🏁 ゲームを終了してランキングに記録する処理
   const handleEndGame = async () => {
     if (gameState.score > 0) {
-      await set(ref(db, `ranking/${gameState.name}`), {
+      // 💡 【区別化の修正】名前の後ろに現在の「タイムスタンプ（ミリ秒の数字）」を合体させて、絶対に被らない個別の鍵を作ります
+      const uniqueId = `${gameState.name}_${Date.now()}`;
+
+      // Firebaseの「ranking/名前_時間」の部屋へ保存（これで上書きされなくなります）
+      await set(ref(db, `ranking/${uniqueId}`), {
         name: gameState.name,
-        score: gameState.score
+        score: gameState.score,
+        date: new Date().toLocaleTimeString() // 💡 プレイ時間もおまけで保存
       });
       alert(`🎉 ${gameState.name}さんのスコア（${gameState.score}点）をランキングに保存しました！`);
     }
@@ -75,7 +72,7 @@ export default function ShootingGamePage() {
         <h1 className="text-2xl font-black text-amber-400 mb-2 flex items-center justify-center gap-2">
           🔫 リアルタイム・的当てマシン
         </h1>
-        <p className="text-xs text-slate-400 mb-6">的にレーザーが当たると画面の点数と効果音が連動します</p>
+        <p className="text-xs text-slate-400 mb-6">同じ名前で何回プレイしても、上書きされずに記録が残ります</p>
 
         {gameState.status === "waiting" ? (
           <form onSubmit={handleStartGame} className="flex flex-col gap-4">
