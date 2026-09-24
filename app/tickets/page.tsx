@@ -49,20 +49,21 @@ export default function TicketPage() {
       }
     });
 
-    // 📢 3. 店員側からの個別発券取消のリアルタイム監視
-    onValue(ref(db, "cancelled_numbers"), (snapshot) => {
-      const data = snapshot.val();
+    // 📢 3. 【連動強化】店員側から自分の番号が「発券取消」されたかをリアルタイム監視
+    // 💡 店員が「issued_tickets/自分の番号」を削除した瞬間、この画面も連動して「未発券」に戻します
+    onValue(ref(db, "issued_tickets"), (snapshot) => {
       const mySavedNumber = localStorage.getItem("my_ticket_number");
-      
-      if (data && mySavedNumber) {
+      if (mySavedNumber) {
         const myNum = Number(mySavedNumber);
-        if (data[myNum] === true) {
+        const data = snapshot.val();
+        
+        // データベース上に自分のチケットが存在しない（消された）場合
+        if (!data || !data[myNum]) {
           setMyNumber(null);
           localStorage.removeItem("my_ticket_number");
           localStorage.removeItem("is_sound_enabled");
           lastPlayedNumber.current = null;
           setIsSoundEnabled(false);
-          set(ref(db, `cancelled_numbers/${myNum}`), null);
         }
       }
     });
@@ -75,7 +76,10 @@ export default function TicketPage() {
     const lastNumber = snapshot.val() || 0;
     const nextTicketNumber = lastNumber + 1; 
 
+    // クラウド上にチケット情報を登録
+    await set(ref(db, `issued_tickets/${nextTicketNumber}`), true);
     await set(lastIssuedRef, nextTicketNumber);
+    
     setMyNumber(nextTicketNumber);
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
@@ -92,16 +96,17 @@ export default function TicketPage() {
     }
   };
 
-  // 🛠️ 【復活】お客様自身で発券を取り消す（キャンセルする）処理
+  // お客様自身で発券を取り消す（キャンセルする）処理
   const handleCancelTicket = async () => {
     if (myNumber === null) return;
     
     if (confirm("この整理券を取り消しますか？（※一度取り消すと、元の番号には戻せません）")) {
-      // 💡 店員側の「客側キャンセル（抜け番）リスト」に自分の番号を載せる
       const cancelRef = ref(db, `cancelled_numbers/${myNumber}`);
       await set(cancelRef, true);
+      
+      // 💡 クラウド上の発券データからも削除
+      await set(ref(db, `issued_tickets/${myNumber}`), null);
 
-      // スマホ内のデータをリセット
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
       localStorage.removeItem("is_sound_enabled");
@@ -140,7 +145,6 @@ export default function TicketPage() {
             <p className="text-xs text-gray-500 font-bold">あなたの整理券番号</p><p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
             <div className="mt-2 text-sm font-bold">{isMyTurn ? <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">📢 あなたの順番です！窓口へどうぞ！</div> : <p className="text-gray-500">{calledNumbers.length > 0 ? "他の番号をお呼び出し中です。しばらくお待ちください。" : "呼び出し開始までそのままお待ちください。"}</p>}</div>
             
-            {/* 🛠️ 【復活】お客様用のキャンセルボタン */}
             <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto transition-colors">
               整理券を取り消す
             </button>

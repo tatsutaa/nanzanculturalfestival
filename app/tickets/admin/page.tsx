@@ -7,7 +7,7 @@ import { ref, onValue, set, get } from "firebase/database";
 export default function AdminTicketPage() {
   const [lastIssued, setLastIssued] = useState(0);
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
-  const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); // 💡 客側キャンセルリスト
+  const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [calculatorInput, setCalculatorInput] = useState(""); 
@@ -25,11 +25,10 @@ export default function AdminTicketPage() {
       setCalledNumbers(data ? Object.values(data).map(Number) : []);
     });
 
-    // 📢 【バグ修正】お客様側からのキャンセル報告をリアルタイムで受信して配列化
+    // 📢 お客様側からのキャンセル報告をリアルタイムで受信
     onValue(ref(db, "cancelled_numbers"), (s) => {
       const data = s.val();
       if (data) {
-        // クラウドのオブジェクトから、trueになっている番号（キー）だけを抽出して並び替え
         const numbers = Object.keys(data).map(Number).sort((a, b) => a - b);
         setCancelledNumbers(numbers);
       } else {
@@ -53,8 +52,15 @@ export default function AdminTicketPage() {
     await set(ref(db, "call_history"), updated);
   };
 
+  // ✅ 1. 呼び出し処理
   const executeCall = async (num: number) => {
     if (!num || num <= 0 || num > lastIssued) return alert("正しい発券済みの番号を指定してください");
+    
+    // 💡 抜け番リストに入っているものを呼び出した場合は、抜け番から除外する
+    if (cancelledNumbers.includes(num)) {
+      await set(ref(db, `cancelled_numbers/${num}`), null);
+    }
+
     const listRef = ref(db, "calling_now_list");
     const s = await get(listRef);
     const currentList: number[] = s.val() ? Object.values(s.val()).map(Number) : [];
@@ -62,37 +68,45 @@ export default function AdminTicketPage() {
       const updated = [...currentList, num].sort((a, b) => a - b);
       await set(listRef, updated);
       await updateHistory(num);
-      // 💡 もしキャンセル抜け番リストに載っていた場合は、呼び出したのでリストから消去する
-      await set(ref(db, `cancelled_numbers/${num}`), null);
     }
   };
 
+  // ✅ 2. 呼び出し取消処理（修正完了）
   const executeUndoCall = async (num: number) => {
     if (confirm(`${num}番の呼び出しを取り消しますか？`)) {
       const listRef = ref(db, "calling_now_list");
       const s = await get(listRef);
       const currentList: number[] = s.val() ? Object.values(s.val()).map(Number) : [];
+      
       const updated = currentList.filter(n => n !== num);
+      // 💡 修正：空になったらデータベースを空(null)にし、残っていれば新しいリストを確実に保存
       await set(listRef, updated.length ? updated : null);
     }
   };
 
+  // ✅ 3. 発券取消処理（修正完了）
   const executeUndoIssue = async (num: number) => {
     if (calledNumbers.includes(num)) return alert("呼び出し中の番号は発券取り消しできません。先に呼び出しを取り消してください。");
+    
     if (confirm(`「${num}番」の発券を取り消します。この番号を持っているお客様の画面は自動的に「未発券」に戻ります。よろしいですか？`)) {
+      // 💡 最新の番号を削る場合
       if (num === lastIssued) {
         await set(ref(db, "last_issued_number"), lastIssued - 1);
       }
-      const historyRef = ref(db, "call_history");
-      const hSnapshot = await get(historyRef);
+      
+      // 💡 修正：お客様画面を「未発券」に強制連動させるため、Firebase上の発券データ自体を削除
+      await set(ref(db, `issued_tickets/${num}`), null);
+      
+      // 抜け番リストや履歴からも完全に削除
+      await set(ref(db, `cancelled_numbers/${num}`), null);
+      const hSnapshot = await get(ref(db, "call_history"));
       const currentH = hSnapshot.val() ? Object.values(hSnapshot.val()).map(Number) : [];
       const updatedH = currentH.filter(n => n !== num);
-      await set(historyRef, updatedH.length ? updatedH : null);
-      // 店員側からの発券取消なので、客側キャンセル報告フラグはクリアする
-      await set(ref(db, `cancelled_numbers/${num}`), null);
+      await set(ref(db, "call_history"), updatedH.length ? updatedH : null);
     }
   };
 
+  // ✅ 4. 次の連番呼び出し
   const handleNextCall = async () => {
     const maxCalled = calledNumbers.length > 0 ? Math.max(...calledNumbers) : 0;
     const nextNumber = maxCalled + 1;
@@ -103,12 +117,14 @@ export default function AdminTicketPage() {
     }
   };
 
+  // ✅ 5. 全データリセット
   const handleResetAll = async () => {
     if (confirm("全ての整理券データを完全にリセットしますか？")) {
       await set(ref(db, "last_issued_number"), 0);
       await set(ref(db, "calling_now_list"), null); 
       await set(ref(db, "cancelled_numbers"), null); 
       await set(ref(db, "call_history"), null); 
+      await set(ref(db, "issued_tickets"), null); // 💡 全発券データもクリア
       setCalculatorInput("");
     }
   };
@@ -141,7 +157,7 @@ export default function AdminTicketPage() {
           <div className="text-center bg-gray-50 p-3 rounded-xl border"><p className="text-xs text-gray-400 font-bold">現在呼び出し中の数</p><p className="text-3xl font-black text-gray-700">{calledNumbers.length} 組</p></div>
         </div>
 
-        {/* 🛠️ 【バグ修正】お客様側からキャンセルされた「抜け番」をリアルタイム表示するエリア */}
+        {/* ❌ お客様がキャンセルした番号（抜け番）表示エリア */}
         <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4">
           <p className="text-xs text-orange-700 font-black mb-1.5">❌ お客様がキャンセルした番号（抜け番）:</p>
           {cancelledNumbers.length === 0 ? (
@@ -157,11 +173,12 @@ export default function AdminTicketPage() {
           )}
         </div>
 
+        {/* 📊 発行済みバッジ一覧 */}
         <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-100">
           <p className="text-[10px] text-gray-400 font-black mb-1.5 text-center tracking-wider">📊 発行済みバッジ一覧（緑が現在呼び出し中）</p>
           <div className="flex flex-wrap justify-center gap-1.5 max-h-24 overflow-y-auto">
             {allActiveNumbers.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">未発券</p>
+              <p className="text-xs text-gray-400 italic">なし</p>
             ) : (
               allActiveNumbers.map((num) => {
                 const isCalling = calledNumbers.includes(num);
@@ -173,6 +190,7 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
+        {/* 🔢 電卓パネル */}
         <div className="bg-gray-900 p-4 rounded-2xl mb-6">
           <div className="bg-black text-right text-green-400 font-mono text-3xl p-3 rounded-lg mb-4 h-14 flex items-center justify-end">{calculatorInput || "0"}<span className="text-sm text-gray-500 ml-1">番</span></div>
           <div className="grid grid-cols-3 gap-2 mb-2">
@@ -183,7 +201,8 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
-                <div className="border-t pt-3">
+        {/* 📋 各番号の操作（三択リスト） */}
+        <div className="border-t pt-3">
           <p className="text-xs font-black text-gray-500 mb-2">📋 各番号の操作（三択リスト）</p>
           <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
             {allActiveNumbers.length === 0 ? (
