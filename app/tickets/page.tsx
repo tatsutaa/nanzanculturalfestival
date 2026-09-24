@@ -139,7 +139,7 @@ export default function TicketPage() {
         <div className="text-center bg-gray-50 p-6 rounded-xl mb-4 border border-gray-100">
           <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在お呼び出し中の番号</p>
           <p className="text-6xl font-black text-blue-600">
-            {currentNumber === 0 ? "未発券" : `${currentNumber} 番`}
+            {currentNumber === 0 ? "未" : `${currentNumber} 番`}
           </p>
         </div>
 
