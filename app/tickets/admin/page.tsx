@@ -205,6 +205,8 @@ export default function AdminTicketPage() {
             )}
           </div>
         </div>
+        <button onClick={handleNextCall} className="w-full mt-6 py-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-base mb-6">📢 次の連番を呼び出す</button>
+        <div className="border-t mt-4 pt-3 text-center"><button onClick={handleResetAll} className="text-gray-400 text-xs font-bold underline">🛠️ データを全リセット</button></div>
       </div>
     </div>
   );
