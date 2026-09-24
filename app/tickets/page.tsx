@@ -10,19 +10,12 @@ export default function TicketPage() {
   const [callHistory, setCallHistory] = useState<number[]>([]); 
   const [isHydrated, setIsHydrated] = useState(false);
   
-  // 🔊 音声管理用の状態
+  // 💡 【修正】あえてlocalStorageには保存せず、リロード時は必ず「false(無効)」からスタートします
   const [isSoundEnabled, setIsSoundEnabled] = useState(false); 
   const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
     const savedNumber = localStorage.getItem("my_ticket_number");
-    
-    // 💾 【新機能】リロードした時に、以前スイッチをONにしていたかを記憶から復元する
-    const savedSoundSetting = localStorage.getItem("is_sound_enabled");
-    if (savedSoundSetting === "true") {
-      setIsSoundEnabled(true);
-    }
-
     const lastRef = ref(db, "last_issued_number");
     const historyRef = ref(db, "call_history");
     const currentRef = ref(db, "current_called_number");
@@ -41,6 +34,7 @@ export default function TicketPage() {
       if (mySavedNumber && data > 0) {
         const myNum = Number(mySavedNumber);
         
+        // スイッチがONのときだけ鳴らす
         if (data === myNum && lastPlayedNumber.current !== data && isSoundEnabled) {
           lastPlayedNumber.current = data;
           
@@ -70,7 +64,6 @@ export default function TicketPage() {
       if (lastNumber === 0) {
         setMyNumber(null);
         localStorage.removeItem("my_ticket_number");
-        localStorage.removeItem("is_sound_enabled"); // 💡 全リセット時は音声の記憶も消去
         lastPlayedNumber.current = null;
         setIsSoundEnabled(false); 
       }
@@ -96,25 +89,22 @@ export default function TicketPage() {
     localStorage.setItem("my_ticket_number", String(nextTicketNumber));
   };
 
-  // 🛠️ 【修正】有効化スイッチの処理（記憶機能の連動）
+  // 音声を有効化するスイッチ（トグル）が押された時の処理
   const toggleSoundSwitch = () => {
     if (!isSoundEnabled) {
+      // 💡 ユーザー自身にボタンを押してもらうことで、ブラウザの音ブロックを100%確実に解除します！
       const audioTest = new Audio("/chime.mp3");
-      audioTest.volume = 0.2; 
+      audioTest.volume = 0.3; 
       audioTest.play()
         .then(() => {
           setIsSoundEnabled(true);
-          // 💾 ブラウザの記憶に「音声をONにした」という事実を保存します
-          localStorage.setItem("is_sound_enabled", "true");
-          alert("🔊 呼び出しチャイム音が有効になりました！このままお待ちください。");
         })
         .catch((err) => {
-          alert("❌ 音声の有効化に失敗しました。画面を一度タップしてからもう一度お試しください。");
+          alert("❌ 画面のどこかを1回タップしてから、もう一度スイッチを押してください。");
           console.log(err);
         });
     } else {
       setIsSoundEnabled(false);
-      localStorage.removeItem("is_sound_enabled"); // OFFにした時は記憶を消去
     }
   };
 
@@ -125,7 +115,6 @@ export default function TicketPage() {
       await set(cancelRef, true);
       setMyNumber(null);
       localStorage.removeItem("my_ticket_number");
-      localStorage.removeItem("is_sound_enabled");
     }
   };
 
@@ -156,6 +145,7 @@ export default function TicketPage() {
           </div>
         )}
 
+        {/* 🛠️ 【UIデザイン改善】リロードされたら必ず赤く点滅し、お客様に「音を有効にしてね」と促す親切設計 */}
         {myNumber !== null && (
           <div className={`p-4 rounded-xl mb-4 border flex items-center justify-between transition-all ${isSoundEnabled ? "bg-green-50 border-green-200" : "bg-red-50 border-red-100 animate-pulse"}`}>
             <div className="flex flex-col">
@@ -163,7 +153,7 @@ export default function TicketPage() {
                 {isSoundEnabled ? "🔔 呼び出し音: 有効" : "🔕 呼び出し音: 無効"}
               </span>
               <span className="text-[10px] text-gray-400 font-bold mt-0.5">
-                {isSoundEnabled ? "順番が来るとチャイムが鳴ります" : "音が鳴りません！ONにしてください"}
+                {isSoundEnabled ? "順番が来るとチャイムが鳴ります" : "リロードされました！音を鳴らすにはONにしてください"}
               </span>
             </div>
             
