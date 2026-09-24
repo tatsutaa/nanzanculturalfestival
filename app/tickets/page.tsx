@@ -10,7 +10,6 @@ export default function TicketPage() {
   const [callHistory, setCallHistory] = useState<number[]>([]); 
   const [isHydrated, setIsHydrated] = useState(false);
   
-  // 🔊 音声の二重再生を防ぐためのフラグ
   const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
@@ -19,7 +18,6 @@ export default function TicketPage() {
     const historyRef = ref(db, "call_history");
     const currentRef = ref(db, "current_called_number");
     
-    // 初回読み込み時に自分の番号をセット
     if (savedNumber) {
       setMyNumber(Number(savedNumber));
     }
@@ -30,14 +28,13 @@ export default function TicketPage() {
       const data = snapshot.val() || 0;
       setCurrentNumber(data);
 
-      // スマホ内の自分の番号をチェック
       const mySavedNumber = localStorage.getItem("my_ticket_number");
       if (mySavedNumber && data > 0) {
         const myNum = Number(mySavedNumber);
         
-        // 💡 自分の番号が呼び出された（一致した）瞬間、かつまだこの番号で音を鳴らしていない場合
+        // 💡 【修正】つられ防止：現在の呼び出し番号が、自分の番号と「完全に一致」した瞬間だけ音を鳴らす！
         if (data === myNum && lastPlayedNumber.current !== data) {
-          lastPlayedNumber.current = data; // 再生済みフラグ
+          lastPlayedNumber.current = data;
           
           const audio = new Audio("/chime.mp3");
           audio.volume = 1.0;
@@ -59,12 +56,9 @@ export default function TicketPage() {
       }
     });
 
-    // 📢 3. 【バグ修正】全体データ完全リセット（0番への初期化）の瞬間だけを綺麗に検知する
+    // 📢 3. 全リセットの監視
     const unsubscribeLast = onValue(lastRef, (snapshot) => {
       const lastNumber = snapshot.val();
-      
-      // 💡 店員が「データを全リセット」ボタンを押し、クラウドの最新番号が「完全に0」になった時だけ
-      // お客様画面を強制クリアします。これにより、順番を飛ばして呼び出してもバグらなくなります！
       if (lastNumber === 0) {
         setMyNumber(null);
         localStorage.removeItem("my_ticket_number");
@@ -138,13 +132,15 @@ export default function TicketPage() {
             <p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
             
             <div className="mt-2 text-sm font-bold">
+              {/* 💡 【重要】つられバグ修正：大なり（>=）ではなく、完全に一致（===）したときだけ案内画面にする */}
               {currentNumber === myNumber ? (
                 <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">
                   📢 あなたの順番です！窓口へどうぞ！
                 </div>
               ) : currentNumber > myNumber ? (
-                <div className="bg-gray-400 text-white p-2 rounded-lg text-xs">
-                  ⚠️ あなたの番号は呼び出しを通過しました
+                // 💡 1番を呼ばずに2番を呼んだ場合、1番の人はここに移動し、つられて案内されなくなります
+                <div className="bg-gray-400 text-white p-3 rounded-lg text-xs">
+                  ⚠️ あなたの番号（{myNumber}番）は呼び出しを通過しました
                 </div>
               ) : (
                 <p className="text-gray-600">
