@@ -50,17 +50,28 @@ export default function ShootingGamePage() {
 
   // 🏁 ゲームを終了してランキングに記録する処理
   const handleEndGame = async () => {
-    if (gameState.score > 0) {
-      // 💡 【区別化の修正】名前の後ろに現在の「タイムスタンプ（ミリ秒の数字）」を合体させて、絶対に被らない個別の鍵を作ります
-      const uniqueId = `${gameState.name}_${Date.now()}`;
+    // 💡 同期のズレを防ぐため、今ある名前とスコアを変数にしっかりキープします
+    const currentName = gameState.name || playerName;
+    const currentScore = gameState.score;
 
-      // Firebaseの「ranking/名前_時間」の部屋へ保存（これで上書きされなくなります）
+    // 名前が空（undefinedや空文字）の場合はエラーを防ぐために処理を中断します
+    if (!currentName || !currentName.trim()) {
+      await set(ref(db, "current_game"), null);
+      setPlayerName("");
+      return;
+    }
+
+    if (currentScore > 0) {
+      // 💡 確実に存在する currentName を使ってIDを作ります
+      const uniqueId = `${currentName.trim()}_${Date.now()}`;
+
+      // Firebaseの「ranking/名前_時間」の部屋へ保存
       await set(ref(db, `ranking/${uniqueId}`), {
-        name: gameState.name,
-        score: gameState.score,
-        date: new Date().toLocaleTimeString() // 💡 プレイ時間もおまけで保存
+        name: currentName.trim(),
+        score: currentScore,
+        date: new Date().toLocaleTimeString()
       });
-      alert(`🎉 ${gameState.name}さんのスコア（${gameState.score}点）をランキングに保存しました！`);
+      alert(`🎉 ${currentName}さんのスコア（${currentScore}点）をランキングに保存しました！`);
     }
     await set(ref(db, "current_game"), null);
     setPlayerName("");
