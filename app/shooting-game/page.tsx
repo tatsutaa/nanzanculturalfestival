@@ -19,32 +19,27 @@ export default function ShootingGamePage() {
   const generatePinCode = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
+// 既存のコンポーネント内に、以下の useEffect を新しく追加してください
 
-  useEffect(() => {
-    if (!pinCode) {
-      setGameState({ name: "", score: 0, status: "waiting" });
-      lastScoreRef.current = 0;
-      return;
-    }
-
-    // 💡 Firebaseの `game_pins/4桁コード` の場所をリアルタイムに監視
-    const gameRef = ref(db, `game_pins/${pinCode}`);
-    const unsubscribe = onValue(gameRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setGameState(data);
-        // 的アプリから加算されてスコアが増えたら音を鳴らす
-        if (data.status === "playing" && data.score > lastScoreRef.current) {
-          const audio = new Audio("/hit.mp3");
-          audio.volume = 1.0;
-          audio.play().catch((err) => console.log("音声再生制限:", err));
-        }
-        lastScoreRef.current = data.score;
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    // 💡 画面が裏側から「表側（アクティブ）」に戻ってきたとき
+    if (document.visibilityState === "visible") {
+      console.log("ブラウザがアクティブに戻りました。接続を確認します。");
+      
+      // もしPINコードがあるのに gameState がクリアされていたり、
+      // Firebaseとの通信が完全に切断されていた場合の保険としてリセット処理を入れる
+      if (pinCode && gameState.status === "waiting") {
+        // 必要に応じてここに再チェックの処理を入れるか、
+        // 不安な場合は一度リセットして再度PINを取り直させるのが展示会では一番安全です
       }
-    });
+    }
+  };
 
-    return () => unsubscribe();
-  }, [pinCode]);
+  // ブラウザのタブ切り替えやスリープ復帰を監視
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+}, [pinCode, gameState]);
 
   // 🎯 ゲーム開始（待機部屋を作成して4桁コードを発行）
   const handleStartGame = async (e: React.FormEvent) => {
