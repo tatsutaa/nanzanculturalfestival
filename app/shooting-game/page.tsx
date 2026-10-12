@@ -19,27 +19,49 @@ export default function ShootingGamePage() {
   const generatePinCode = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
-// 既存のコンポーネント内に、以下の useEffect を新しく追加してください
 
-useEffect(() => {
-  const handleVisibilityChange = () => {
-    // 💡 画面が裏側から「表側（アクティブ）」に戻ってきたとき
-    if (document.visibilityState === "visible") {
-      console.log("ブラウザがアクティブに戻りました。接続を確認します。");
-      
-      // もしPINコードがあるのに gameState がクリアされていたり、
-      // Firebaseとの通信が完全に切断されていた場合の保険としてリセット処理を入れる
-      if (pinCode && gameState.status === "waiting") {
-        // 必要に応じてここに再チェックの処理を入れるか、
-        // 不安な場合は一度リセットして再度PINを取り直させるのが展示会では一番安全です
+  // 🛠️ 【追加】スマホのスリープ復帰やタブ切り替え（Back-Forward Cache対策）の監視
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // スマホがスリープから復帰したり、別タブから戻ってきたとき
+      if (document.visibilityState === "visible") {
+        console.log("ブラウザがアクティブに戻りました。接続を維持します。");
+        // Firebaseは自動で再接続を試みます
       }
-    }
-  };
+    };
 
-  // ブラウザのタブ切り替えやスリープ復帰を監視
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-  return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-}, [pinCode, gameState]);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  // 🔹 自分専用の部屋（game_pins/4桁コード）のスコア・状態をリアルタイム監視
+  useEffect(() => {
+    if (!pinCode) {
+      setGameState({ name: "", score: 0, status: "waiting" });
+      lastScoreRef.current = 0;
+      return;
+    }
+
+    const gameRef = ref(db, `game_pins/${pinCode}`);
+    const unsubscribe = onValue(gameRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setGameState(data);
+        // 的アプリから加算されてスコアが増えたら音を鳴らす
+        if (data.status === "playing" && data.score > lastScoreRef.current) {
+          const audio = new Audio("/hit.mp3");
+          audio.volume = 1.0;
+          audio.play().catch((err) => console.log("音声再生制限:", err));
+        }
+        lastScoreRef.current = data.score;
+      } else {
+        // 的アプリ側で消された、または切断された場合は初期状態に戻す
+        setPinCode(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [pinCode]);
 
   // 🎯 ゲーム開始（待機部屋を作成して4桁コードを発行）
   const handleStartGame = async (e: React.FormEvent) => {
@@ -50,11 +72,10 @@ useEffect(() => {
     const newPin = generatePinCode();
 
     try {
-      // `game_pins/4桁コード` の中に初期データを書き込む
       await set(ref(db, `game_pins/${newPin}`), {
         name: playerName.trim(),
         score: 0,
-        status: "waiting" // 的アプリが接続してくるのを待つ状態
+        status: "waiting"
       });
 
       setPinCode(newPin);
@@ -75,7 +96,7 @@ useEffect(() => {
       if (currentName && currentName.trim() && currentScore > 0) {
         const uniqueId = `${currentName.trim()}_${Date.now()}`;
 
-        // ランキング（ranking）の部屋へスコアを保存
+        // ランキングの部屋へ保存
         await set(ref(db, `ranking/${uniqueId}`), {
           name: currentName.trim(),
           score: currentScore,
@@ -119,7 +140,7 @@ useEffect(() => {
           /* 🔢 的アプリへの接続コード待機画面 */
           <div className="animate-pulse">
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 mb-4">
-              <p className="text-xs text-amber-400 font-bold tracking-wider">的の画面に次のコードを入力してください</p>
+              <p className="text-xs text-amber-400 font-bold tracking-wider">の画面に次のコードを入力してください</p>
               <p className="text-5xl font-mono font-black tracking-widest text-white mt-3">{pinCode}</p>
             </div>
             <p className="text-xs text-slate-500">的のアプリが接続すると自動でゲーム画面に切り替わります...</p>
@@ -128,7 +149,7 @@ useEffect(() => {
             </button>
           </div>
         ) : (
-          /* 🎮 プレイ中画面（的と繋がるとここになる） */
+          /* 🎮 プレイ中画面 */
           <div className="transition-all duration-300">
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
               <p className="text-xs text-emerald-400 font-bold tracking-wider">● 接続中 - PLAYING</p>
