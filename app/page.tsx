@@ -54,6 +54,19 @@ export default function Home() {
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">PLAY ➔</span>
           </a>
 
+          {/* Browser-based target control screen */}
+          <a
+            href="/laser-game"
+            className="group relative flex items-center justify-between p-4 bg-gradient-to-r from-rose-700/80 to-orange-700/80 hover:from-rose-600 hover:to-orange-600 rounded-2xl border border-rose-300/20 shadow-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+          >
+            <div className="text-left">
+              <span className="text-xl mr-2">🎯</span>
+              <span className="font-extrabold text-sm sm:text-base tracking-wide">{t("targetLink")}</span>
+              <p className="text-[10px] text-rose-100/80 font-medium mt-0.5">{t("targetLinkDescription")}</p>
+            </div>
+            <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">OPEN ➔</span>
+          </a>
+
           {/* Score leaderboard link */}
           <a 
             href="/realtime-ranking" 

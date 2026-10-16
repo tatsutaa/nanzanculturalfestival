@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { db } from "../firebase"; 
+import { QRCodeSVG } from "qrcode.react";
+import { signInAnonymously } from "firebase/auth";
+import { auth, db } from "../firebase";
 import { ref, onValue, set, remove } from "firebase/database";
 import { useLanguage } from "../language";
 
@@ -17,9 +19,11 @@ export default function ShootingGamePage() {
 
   const lastScoreRef = useRef<number>(0);
 
-  // Generate a random four-digit access code.
-  const generatePinCode = () => {
-    return Math.floor(1000 + Math.random() * 9000).toString();
+  // Generate a 128-bit room token that is impractical to guess.
+  const generateRoomToken = () => {
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
   };
 
   // Monitor when the page becomes visible again after sleep or a tab switch.
@@ -62,26 +66,31 @@ export default function ShootingGamePage() {
     return () => unsubscribe();
   }, [pinCode]);
 
-  // Create a waiting room and issue a four-digit code.
+  // Authenticate the browser, create an owned room, and display its pairing QR code.
   const handleStartGame = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) return alert(t("enterNameAlert"));
 
     lastScoreRef.current = 0;
-    const newPin = generatePinCode();
+    const roomToken = generateRoomToken();
 
     try {
-      await set(ref(db, `game_pins/${newPin}`), {
+      const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
+      await set(ref(db, `game_pins/${roomToken}`), {
         name: playerName.trim(),
         score: 0,
-        status: "waiting"
+        status: "waiting",
+        ownerUid: user.uid,
       });
 
-  setGameState({ name: playerName.trim(), score: 0, status: "waiting" });
-      setPinCode(newPin);
+      setGameState({ name: playerName.trim(), score: 0, status: "waiting" });
+      setPinCode(roomToken);
     } catch (error) {
       console.error(t("gameStartError"), error);
-      alert(t("connectionFailed"));
+      const errorCode = typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : "";
+      alert(errorCode.startsWith("auth/") ? t("authProviderSetupRequired") : t("connectionFailed"));
     }
   };
 
@@ -137,11 +146,21 @@ export default function ShootingGamePage() {
             </button>
           </form>
         ) : gameState.status === "waiting" ? (
-          <div className="animate-pulse">
+          <div>
             {/* Waiting for the target-game app to connect */}
-            <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 mb-4">
+            <div className="bg-slate-900 p-5 rounded-xl border border-slate-700 mb-4">
               <p className="text-xs text-amber-400 font-bold tracking-wider">{t("enterCodePrompt")}</p>
-              <p className="text-5xl font-mono font-black tracking-widest text-white mt-3">{pinCode}</p>
+              <div className="mx-auto mt-4 w-fit rounded-lg bg-white p-3">
+                <QRCodeSVG
+                  value={`${window.location.origin}/laser-game?room=${pinCode}`}
+                  size={220}
+                  level="H"
+                  marginSize={2}
+                  title={t("targetQrCaption")}
+                />
+              </div>
+              <p className="mt-3 text-sm font-bold text-white">{t("targetQrCaption")}</p>
+              <p className="mt-2 break-all font-mono text-[10px] text-slate-400">{pinCode}</p>
             </div>
             <p className="text-xs text-slate-500">{t("targetAppWaiting")}</p>
             <button onClick={() => { remove(ref(db, `game_pins/${pinCode}`)); setPinCode(null); }} className="mt-6 text-xs text-rose-400 underline font-bold">

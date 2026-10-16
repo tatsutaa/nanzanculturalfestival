@@ -31,15 +31,15 @@
       ".read": true,
       ".write": "auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID'",
       "$entry": {
-        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (!data.exists() && newData.hasChildren(['name', 'score', 'date']))",
+        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (auth != null && !data.exists() && newData.hasChildren(['name', 'score', 'date']))",
         ".validate": "newData.hasChildren(['name', 'score', 'date']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('date').isString()"
       }
     },
     "game_pins": {
-      ".read": true,
+      ".read": "auth != null",
       "$pin": {
-        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (!data.exists() && newData.hasChildren(['name', 'score', 'status'])) || (data.exists() && !newData.exists())",
-        ".validate": "newData.hasChildren(['name', 'score', 'status']) && newData.child('name').isString() && newData.child('score').isNumber() && newData.child('status').isString()"
+        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (auth != null && !data.exists() && newData.hasChildren(['name', 'score', 'status', 'ownerUid']) && newData.child('ownerUid').val() == auth.uid) || (auth != null && data.exists() && !newData.exists() && data.child('ownerUid').val() == auth.uid) || (auth != null && data.exists() && newData.exists() && newData.child('name').val() == data.child('name').val() && newData.child('score').val() == data.child('score').val() && newData.child('ownerUid').val() == data.child('ownerUid').val() && data.child('status').val() == 'waiting' && newData.child('status').val() == 'playing') || (auth != null && data.exists() && newData.exists() && newData.child('name').val() == data.child('name').val() && newData.child('ownerUid').val() == data.child('ownerUid').val() && data.child('status').val() == 'playing' && newData.child('status').val() == 'playing' && newData.child('score').val() == data.child('score').val() + 10)",
+        ".validate": "$pin.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['name', 'score', 'status', 'ownerUid']) && newData.numChildren() == 4 && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('status').isString() && (newData.child('status').val() == 'waiting' || newData.child('status').val() == 'playing') && newData.child('ownerUid').isString()"
       }
     }
   }
