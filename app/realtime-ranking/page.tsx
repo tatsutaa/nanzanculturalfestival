@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue } from "firebase/database";
+import { useLanguage } from "../language";
 
 // One ranking entry retrieved from Firebase.
 interface RankingItem {
@@ -12,6 +13,7 @@ interface RankingItem {
 }
 
 export default function RealtimeRankingPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<RankingItem[]>([]);
 
   useEffect(() => {
@@ -44,14 +46,14 @@ export default function RealtimeRankingPage() {
     <div className="max-w-md mx-auto min-h-screen p-6 bg-gray-50 flex flex-col justify-center">
       <div className="p-6 bg-white rounded-2xl shadow-xl border border-gray-100">
         <h1 className="text-xl font-black text-gray-800 mb-2 text-center flex items-center justify-center gap-2">
-          🎯 シューティングランキング
+          {t("rankingTitle")}
         </h1>
         <p className="text-xs text-gray-400 mb-6 text-center">
-          同じ名前の挑戦データも上書きされずにすべて集計されます
+          {t("rankingDescription")}
         </p>
 
         {sortedItems.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 my-8">データがまだありません。</p>
+          <p className="text-center text-sm text-gray-400 my-8">{t("noRankingData")}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {sortedItems.map((item, index) => {
@@ -70,7 +72,7 @@ export default function RealtimeRankingPage() {
                     <span className="font-bold text-gray-700 text-sm">{item.name}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-black text-red-500">{item.score} 点</span>
+                    <span className="text-sm font-black text-red-500">{item.score} {t("points")}</span>
                   </div>
                 </div>
               );

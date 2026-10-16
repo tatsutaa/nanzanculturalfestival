@@ -1,53 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# School Cultural Festival IoT Ecosystem
 
----
+A Next.js web app for cultural-festival ticketing, a live target game, and score rankings. Firebase Realtime Database synchronizes ticket and game data with the browser and the connected hardware client.
 
-# 🚀 [Your App Name] (School Cultural Festival IoT Ecosystem)
+## Features
 
-A highly optimized, dynamic Web application built to automate interactive attractions and solve real-world logistical challenges at our high school cultural festival.
+- Visitors can issue and cancel queue tickets and see active calls.
+- Staff can manage tickets and reset festival data from the protected admin page at `/tickets/admin`.
+- Players can join a target game with a room code and follow their score live.
+- Visitors can view the live leaderboard.
 
-## 🌟 Project Overview
-This project was conceptualized, designed, and deployed within **just one week**. To achieve this rapid development lifecycle, I adopted an **AI-collaborative engineering workflow**, translating complex requirements into a production-ready system with precision and high efficiency.
+## Project Structure
 
-## 🛠️ Tech Stack & Architecture
-- **Frontend Framework:** Next.js (App Router), TypeScript, Tailwind CSS
-- **Backend / Database:** Firebase (Cloud Firestore / Realtime Database)
-- **Deployment & CI/CD:** Vercel (Integrated with GitHub)
-- **Code Quality:** ESLint v9 (Flat Config)
-- **Hardware Integration:** Python
-
-## ⚡ IoT Architecture & Hardware Integration
-To automate score tracking and eliminate manual data entry, the application operates as a full-scale IoT ecosystem:
-- **Hardware Layer:** An infrared (IR) sensor system embedded in the game hardware to detect real-time hits.
-- **Data Ingestion Layer (Python):** A Python script runs on the hardware backend to process raw sensor signals and securely push hit events to Firebase.
-- **Real-time Synchronization (JavaScript/Next.js):** The frontend listens to Firebase's real-time data streams, instantly reflecting scores on the UI without requiring page reloads.
-
-## 🤖 AI Collaboration & Prompt Logs (★追加点)
-To demonstrate the system architecture decision-making and human-in-the-loop engineering process, the complete documentation of requirements and AI interactions is recorded in this repository:
-- **Prompt Engineering & Specification:** Detailed engineering prompts used to enforce concise, type-safe, and high-quality code generation can be found in [docs/prompts.md](./docs/prompts.md).
-- **Quality Assurance Loop:** Real-time debugging practices using Browser Developer Tools (DevTools) to pipe error logs back into the AI for rapid automated hotfixes.
-
-## 📋 Core Features
-- **Digital Ticketing System:** Eliminates physical queues by issuing digital tickets and managing entry flows in real time.
-- **Target Game Score Sync (*Under Active Development*):** Captures infrared sensor events via Python and syncs scores with the cloud.
-- **Real-time Leaderboard:** Aggregates game metrics dynamically to display high scores instantly.
-
-## 💻 Getting Started (Local Development)
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```text
+app/                  Next.js routes, shared layout, styles, and Firebase client
+	tickets/            Visitor ticket page and staff admin page
+	shooting-game/      Player game page
+	realtime-ranking/   Live leaderboard page
+docs/                 Project notes and admin security setup
+public/               Audio and other static assets
+database.rules.json   Realtime Database access rules
+firebase.json         Firebase CLI configuration
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Next.js and TypeScript configuration files, package manifests, and lint settings live at the project root. Build output and installed dependencies are excluded by `.gitignore`.
 
-## 📖 Learn More & Deploy
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Deploy on Vercel](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) for more details.
+## Development
+
+Install dependencies and start the local server:
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Check the project with `npm run lint` and `npm run build`.
+
+## Firebase and Admin Setup
+
+The staff page uses Firebase Authentication and an administrator UID allowlist. Configure the Firebase account, `NEXT_PUBLIC_ADMIN_UID`, and Realtime Database rules before deployment. Follow [docs/admin-security.md](./docs/admin-security.md); do not deploy `database.rules.json` while it still contains the UID placeholder.
+
+## Project Notes
+
+Architecture decisions and AI collaboration notes are in [docs/prompts.md](./docs/prompts.md).

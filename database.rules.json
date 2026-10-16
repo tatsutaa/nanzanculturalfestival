@@ -1,0 +1,46 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "last_issued_number": {
+      ".read": true,
+      ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (newData.isNumber() && ((data.val() == null && newData.val() == 1) || (data.isNumber() && newData.val() == data.val() + 1)))",
+      ".validate": "newData.isNumber() && newData.val() >= 0"
+    },
+    "issued_tickets": {
+      ".read": true,
+      ".write": "auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID'",
+      "$ticket": {
+        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (!data.exists() && newData.val() == true) || (data.val() == true && !newData.exists() && root.child('cancelled_numbers').child($ticket).val() == true)",
+        ".validate": "newData.val() == true"
+      }
+    },
+    "calling_now_list": {
+      ".read": true,
+      ".write": "auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID'"
+    },
+    "cancelled_numbers": {
+      ".read": true,
+      ".write": "auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID'",
+      "$ticket": {
+        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (newData.val() == true && root.child('issued_tickets').child($ticket).val() == true)",
+        ".validate": "newData.val() == true"
+      }
+    },
+    "ranking": {
+      ".read": true,
+      ".write": "auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID'",
+      "$entry": {
+        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (!data.exists() && newData.hasChildren(['name', 'score', 'date']))",
+        ".validate": "newData.hasChildren(['name', 'score', 'date']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('date').isString()"
+      }
+    },
+    "game_pins": {
+      ".read": true,
+      "$pin": {
+        ".write": "(auth != null && auth.uid == 'REPLACE_WITH_ADMIN_UID') || (!data.exists() && newData.hasChildren(['name', 'score', 'status'])) || (data.exists() && !newData.exists())",
+        ".validate": "newData.hasChildren(['name', 'score', 'status']) && newData.child('name').isString() && newData.child('score').isNumber() && newData.child('status').isString()"
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue, set, get } from "firebase/database";
+import { useLanguage } from "../language";
 
 const TICKET_STORAGE_KEY = "my_ticket_number";
 const TICKET_CHANGE_EVENT = "ticket-number-change";
@@ -42,6 +43,7 @@ function saveTicketNumber(value: string | null) {
 }
 
 export default function TicketPage() {
+  const { t } = useLanguage();
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
   const [issuedTickets, setIssuedTickets] = useState<number[]>([]);
   const savedTicketNumber = useSyncExternalStore(
@@ -124,7 +126,7 @@ export default function TicketPage() {
       audioTest.volume = 0.3; 
       audioTest.play()
         .then(() => setIsSoundEnabled(true))
-        .catch(() => alert("❌ 画面を一度タップしてからもう一度お試しください。"));
+        .catch(() => alert(t("audioPermissionError")));
     } else {
       setIsSoundEnabled(false);
     }
@@ -133,7 +135,7 @@ export default function TicketPage() {
   // Mark this ticket as cancelled and remove it from the active ticket list.
   const handleCancelTicket = async () => {
     if (myNumber === null) return;
-    if (confirm("この整理券を取り消しますか？")) {
+    if (confirm(t("confirmCancelTicket"))) {
       await set(ref(db, `cancelled_numbers/${myNumber}`), true);
       await set(ref(db, `issued_tickets/${myNumber}`), null);
       saveTicketNumber(null);
@@ -147,40 +149,40 @@ export default function TicketPage() {
   return (
     <div className="max-w-md mx-auto min-h-screen p-6 bg-blue-50/50 flex flex-col justify-center">
       <div className="p-6 bg-white rounded-2xl shadow-xl border border-gray-150">
-        <h1 className="text-xl font-black text-blue-600 mb-6 text-center">🍿 お客様用 整理券画面</h1>
+        <h1 className="text-xl font-black text-blue-600 mb-6 text-center">{t("ticketPageTitle")}</h1>
         
         <div className="text-center bg-gray-50 p-6 rounded-xl mb-4 border border-gray-100">
-          <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">現在お呼び出し中の番号</p>
+          <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">{t("currentlyCalling")}</p>
           <div className="flex flex-wrap justify-center gap-2 mt-1">
-            {calledNumbers.length === 0 ? <span className="text-4xl font-black text-blue-600">なし</span> : calledNumbers.map(n => <span key={n} className="text-4xl font-black text-blue-600 bg-white px-3 py-1 rounded-xl shadow-sm border border-blue-100 animate-pulse">{n}番</span>)}
+            {calledNumbers.length === 0 ? <span className="text-4xl font-black text-blue-600">{t("none")}</span> : calledNumbers.map(n => <span key={n} className="text-4xl font-black text-blue-600 bg-white px-3 py-1 rounded-xl shadow-sm border border-blue-100 animate-pulse">{t("ticketNumber", { num: n })}</span>)}
           </div>
         </div>
 
         {myNumber !== null && (
           <div className={`p-4 rounded-xl mb-4 border flex items-center justify-between transition-all ${isSoundEnabled ? "bg-green-50 border-green-200" : "bg-red-50 border-red-100 animate-pulse"}`}>
-            <div className="flex flex-col"><span className="text-xs font-black text-gray-700">{isSoundEnabled ? "🔔 呼び出し音: 有効" : "🔕 呼び出し音: 無効"}</span><span className="text-[10px] text-gray-400 font-bold mt-0.5">{isSoundEnabled ? "順番が来るとチャイムが鳴ります" : "音を鳴らすにはONにしてください"}</span></div>
-            <button onClick={toggleSoundSwitch} className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 ${isSoundEnabled ? "bg-green-500 justify-end" : "bg-gray-300 justify-start"}`}><div className="bg-white w-4 h-4 rounded-full shadow-md"></div></button>
+            <div className="flex flex-col"><span className="text-xs font-black text-gray-700">{isSoundEnabled ? t("soundOn") : t("soundOff")}</span><span className="text-[10px] text-gray-400 font-bold mt-0.5">{isSoundEnabled ? t("soundEnabledHint") : t("soundDisabledHint")}</span></div>
+            <button onClick={toggleSoundSwitch} aria-label={isSoundEnabled ? t("soundOff") : t("soundOn")} className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 ${isSoundEnabled ? "bg-green-500 justify-end" : "bg-gray-300 justify-start"}`}><div className="bg-white w-4 h-4 rounded-full shadow-md"></div></button>
           </div>
         )}
 
         {myNumber === null ? (
-          <button onClick={handleIssueTicket} className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md text-lg">整理券を発券する</button>
+          <button onClick={handleIssueTicket} className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md text-lg">{t("issueTicket")}</button>
         ) : (
           <div className="text-center border-2 border-dashed border-blue-200 p-5 rounded-xl bg-blue-50/30 mb-4">
-            <p className="text-xs text-gray-500 font-bold">あなたの整理券番号</p><p className="text-6xl font-black text-blue-700 my-3">{myNumber} 番</p>
-            <div className="mt-2 text-sm font-bold">{isMyTurn ? <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">📢 あなたの順番です！窓口へどうぞ！</div> : <p className="text-gray-500">{calledNumbers.length > 0 ? "他の番号をお呼び出し中です。しばらくお待ちください。" : "呼び出し開始までそのままお待ちください。"}</p>}</div>
-            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto">整理券を取り消す</button>
+            <p className="text-xs text-gray-500 font-bold">{t("yourTicket")}</p><p className="text-6xl font-black text-blue-700 my-3">{t("ticketNumber", { num: myNumber })}</p>
+            <div className="mt-2 text-sm font-bold">{isMyTurn ? <div className="bg-red-500 text-white p-3 rounded-lg animate-bounce shadow-md">{t("yourTurn")}</div> : <p className="text-gray-500">{calledNumbers.length > 0 ? t("otherTurn") : t("waitingForCall")}</p>}</div>
+            <button onClick={handleCancelTicket} className="mt-6 text-xs text-gray-400 hover:text-red-500 underline block mx-auto">{t("cancelTicket")}</button>
           </div>
         )}
 
         {/* Issued ticket numbers */}
         <div className="border-t pt-4 mt-2">
-          <p className="text-xs font-black text-gray-400 mb-2.5 text-center tracking-wider">📋 本日発券済みのすべての番号</p>
+          <p className="text-xs font-black text-gray-400 mb-2.5 text-center tracking-wider">{t("allTicketsToday")}</p>
           <div className="flex flex-wrap justify-center gap-2 max-h-40 overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
-            {issuedTickets.length === 0 ? <p className="text-xs text-gray-400 italic py-2">まだ発券されていません</p> : issuedTickets.map((num) => {
+            {issuedTickets.length === 0 ? <p className="text-xs text-gray-400 italic py-2">{t("noTicketsIssued")}</p> : issuedTickets.map((num) => {
                 const isCalling = calledNumbers.includes(num);
                 const isMyNum = myNumber === num;
-                return <span key={num} className={`text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm border transition-all ${isCalling ? "bg-green-500 text-white border-green-600 animate-pulse font-black" : isMyNum ? "bg-blue-600 text-white border-blue-700 font-black ring-2 ring-blue-300" : "bg-white text-gray-600 border-gray-200"}`}>{num}番 {isCalling && "📢"} {isMyNum && "⭐"}</span>;
+                return <span key={num} className={`text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm border transition-all ${isCalling ? "bg-green-500 text-white border-green-600 animate-pulse font-black" : isMyNum ? "bg-blue-600 text-white border-blue-700 font-black ring-2 ring-blue-300" : "bg-white text-gray-600 border-gray-200"}`}>{t("ticketNumber", { num })} {isCalling && "📢"} {isMyNum && "⭐"}</span>;
             })}
           </div>
         </div>

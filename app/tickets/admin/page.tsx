@@ -1,56 +1,43 @@
 "use client";
 
-import React, { useState, useEffect, useSyncExternalStore } from "react";
-import { db } from "../../firebase"; 
+import React, { useState, useEffect } from "react";
+import { auth, db } from "../../firebase";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { ref, onValue, set, get } from "firebase/database";
+import { useLanguage } from "../../language";
+import type { MessageKey } from "../../language";
 
-const AUTH_STORAGE_KEY = "is_admin_authenticated";
-const AUTH_CHANGE_EVENT = "admin-auth-state-change";
-
-// Subscribe to login changes from other tabs and this tab.
-function subscribeToAuth(onStoreChange: () => void) {
-  const handleStorageChange = (event: StorageEvent) => {
-    if (event.key === AUTH_STORAGE_KEY || event.key === null) onStoreChange();
-  };
-
-  window.addEventListener("storage", handleStorageChange);
-  window.addEventListener(AUTH_CHANGE_EVENT, onStoreChange);
-
-  return () => {
-    window.removeEventListener("storage", handleStorageChange);
-    window.removeEventListener(AUTH_CHANGE_EVENT, onStoreChange);
-  };
-}
-
-function getAuthSnapshot() {
-  return localStorage.getItem(AUTH_STORAGE_KEY) === "true";
-}
-
-// Keep server rendering and initial hydration unauthenticated.
-function getServerAuthSnapshot() {
-  return false;
-}
-
-function notifyAuthChange() {
-  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
-}
+const ADMIN_UID = process.env.NEXT_PUBLIC_ADMIN_UID;
 
 export default function AdminTicketPage() {
+  const { t } = useLanguage();
   const [issuedTickets, setIssuedTickets] = useState<number[]>([]); 
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
   const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); 
-  const isAuthenticated = useSyncExternalStore(
-    subscribeToAuth,
-    getAuthSnapshot,
-    getServerAuthSnapshot,
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [calculatorInput, setCalculatorInput] = useState(""); 
-  const [errorMsg, setErrorMsg] = useState("");
-
-  const ADMIN_PASSWORD = "Tacchan";
+  const [errorMsg, setErrorMsg] = useState<MessageKey | null>(null);
 
   useEffect(() => {
+    // Restore the Firebase session and allow only the configured administrator.
+    return onAuthStateChanged(auth, (user) => {
+      const isAdmin = Boolean(user && ADMIN_UID && user.uid === ADMIN_UID);
+      setIsAuthenticated(isAdmin);
+      setIsAuthLoading(false);
+
+      if (user && !isAdmin) {
+        setErrorMsg("noAdminPermission");
+        void signOut(auth);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
     // Keep the ticket lists synchronized with Firebase.
     const unsubscribeIssued = onValue(ref(db, "issued_tickets"), (snapshot) => {
       const data = snapshot.val();
@@ -77,20 +64,33 @@ export default function AdminTicketPage() {
       unsubscribeCalling();
       unsubscribeCancelled();
     };
-  }, []);
+  }, [isAuthenticated]);
 
-  // Verify the password and persist successful authentication in browser storage.
-  const handleLogin = (e: React.FormEvent) => {
+  // Sign in with the admin account configured in Firebase Authentication.
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === ADMIN_PASSWORD) {
-      localStorage.setItem(AUTH_STORAGE_KEY, "true");
-      notifyAuthChange();
-    } else { setErrorMsg("❌ パスワード不一致"); }
+    setErrorMsg(null);
+
+    if (!ADMIN_UID) {
+      setErrorMsg("missingAdminUid");
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, emailInput.trim(), passwordInput);
+      setPasswordInput("");
+    } catch {
+      setErrorMsg("loginFailed");
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
   };
 
   // Add a valid issued ticket to the active calling list.
   const executeCall = async (num: number) => {
-    if (!num || num <= 0 || !issuedTickets.includes(num)) return alert("存在する正しい発券済み番号を指定してください");
+    if (!num || num <= 0 || !issuedTickets.includes(num)) return alert(t("invalidTicketAlert"));
     if (cancelledNumbers.includes(num)) {
       await set(ref(db, `cancelled_numbers/${num}`), null);
     }
@@ -105,7 +105,7 @@ export default function AdminTicketPage() {
 
   // Remove a ticket from the active calling list after confirmation.
   const executeUndoCall = async (num: number) => {
-    if (confirm(`${num}番の呼び出しを取り消しますか？`)) {
+    if (confirm(t("confirmUndoCall", { num }))) {
       const listRef = ref(db, "calling_now_list");
       const s = await get(listRef);
       const currentList: number[] = s.val() ? Object.values(s.val()).map(Number) : [];
@@ -116,8 +116,8 @@ export default function AdminTicketPage() {
 
   // Remove an issued ticket and update the last-issued number when needed.
   const executeUndoIssue = async (num: number) => {
-    if (calledNumbers.includes(num)) return alert("呼び出し中の番号は発券取り消しできません。先に呼び出しを取り消してください。");
-    if (confirm(`「${num}番」の発券を取り消します。この番号を持っているお客様の画面は自動的に「未発券」に戻ります。よろしいですか？`)) {
+    if (calledNumbers.includes(num)) return alert(t("cannotUndoCalledTicket"));
+    if (confirm(t("confirmUndoIssue", { num }))) {
       
       // If the latest ticket is removed, roll the counter back to the previous ticket.
       const maxIssued = issuedTickets.length > 0 ? Math.max(...issuedTickets) : 0;
@@ -137,13 +137,13 @@ export default function AdminTicketPage() {
     if (uncalled.length > 0) {
       await executeCall(uncalled[0]);
     } else {
-      alert("呼び出していない発券済み番号がありません。");
+      alert(t("noUncalledTickets"));
     }
   };
 
   // Clear ticketing data while leaving the shooting-game leaderboard untouched.
   const handleResetAll = async () => {
-    if (confirm("全ての整理券データを完全にリセットしますか？（※ランキングは消えません）")) {
+    if (confirm(t("confirmResetTickets"))) {
       await set(ref(db, "last_issued_number"), 0);
       await set(ref(db, "calling_now_list"), null); 
       await set(ref(db, "cancelled_numbers"), null); 
@@ -154,20 +154,35 @@ export default function AdminTicketPage() {
 
   // Clear only the shooting-game leaderboard.
   const handleResetRanking = async () => {
-    if (confirm("🏆 シューティングゲームのランキングデータを全て削除し、完全にリセットしますか？（※整理券データは消えません）")) {
+    if (confirm(t("confirmResetRanking"))) {
       await set(ref(db, "ranking"), null);
-      alert("🗑️ ランキングを完全にリセットしました！");
+      alert(t("rankingResetDone"));
     }
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen p-6 flex items-center justify-center">
+        <p className="text-sm text-gray-500">{t("authChecking")}</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
       <div className="max-w-md mx-auto min-h-screen p-6 bg-gray-100 flex flex-col justify-center">
         <form onSubmit={handleLogin} className="p-6 bg-white rounded-2xl shadow-xl flex flex-col gap-4">
-          <h1 className="text-xl font-black text-center">🔐 管理者認証</h1>
-          <input type="password" placeholder="パスワードを入力..." value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="p-3 border rounded-xl" />
-          {errorMsg && <p className="text-xs text-red-500 font-bold text-center">{errorMsg}</p>}
-          <button type="submit" className="w-full py-3 bg-red-500 text-white font-bold rounded-xl">ロック解除</button>
+          <h1 className="text-xl font-black text-center">{t("adminTitle")}</h1>
+          <label className="text-sm font-bold text-gray-700">
+            {t("email")}
+            <input type="email" autoComplete="username" required placeholder={t("emailPlaceholder")} value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="mt-1 w-full p-3 border rounded-xl" />
+          </label>
+          <label className="text-sm font-bold text-gray-700">
+            {t("password")}
+            <input type="password" autoComplete="current-password" required placeholder={t("passwordPlaceholder")} value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="mt-1 w-full p-3 border rounded-xl" />
+          </label>
+          {errorMsg && <p className="text-xs text-red-500 font-bold text-center">{t(errorMsg)}</p>}
+          <button type="submit" className="w-full py-3 bg-red-500 text-white font-bold rounded-xl">{t("login")}</button>
         </form>
       </div>
     );
@@ -177,29 +192,29 @@ export default function AdminTicketPage() {
     <div className="max-w-md mx-auto min-h-screen p-4 bg-red-50/30 flex flex-col gap-4">
       <div className="p-5 bg-white rounded-2xl shadow-xl border border-red-100">
         <div className="flex justify-between mb-4">
-          <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 font-bold">管理ボード</span>
-          <button onClick={() => { localStorage.removeItem(AUTH_STORAGE_KEY); notifyAuthChange(); }} className="text-xs text-gray-400 hover:text-red-500 underline">🚪 ログアウト</button>
+          <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 font-bold">{t("adminBoard")}</span>
+          <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-red-500 underline">{t("logout")}</button>
         </div>
         
         <div className="grid grid-cols-2 gap-4 mb-3">
-          <div className="text-center bg-red-50/50 p-3 rounded-xl border border-red-100"><p className="text-xs text-red-400 font-bold">総発券枚数（現在有効）</p><p className="text-3xl font-black text-red-600">{issuedTickets.length} 枚</p></div>
-          <div className="text-center bg-gray-50 p-3 rounded-xl border"><p className="text-xs text-gray-400 font-bold">現在呼び出し中の数</p><p className="text-3xl font-black text-gray-700">{calledNumbers.length} 組</p></div>
+          <div className="text-center bg-red-50/50 p-3 rounded-xl border border-red-100"><p className="text-xs text-red-400 font-bold">{t("activeTicketCount")}</p><p className="text-3xl font-black text-red-600">{t("ticketCount", { count: issuedTickets.length })}</p></div>
+          <div className="text-center bg-gray-50 p-3 rounded-xl border"><p className="text-xs text-gray-400 font-bold">{t("callingCount")}</p><p className="text-3xl font-black text-gray-700">{calledNumbers.length} {t("groups")}</p></div>
         </div>
 
         <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4">
-          <p className="text-xs text-orange-700 font-black mb-1.5">❌ お客様がキャンセルした番号（抜け番）:</p>
-          {cancelledNumbers.length === 0 ? <p className="text-xs text-gray-400 italic">なし</p> : <div className="flex flex-wrap gap-1.5">{cancelledNumbers.map(num => <span key={num} className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">{num}番</span>)}</div>}
+          <p className="text-xs text-orange-700 font-black mb-1.5">{t("cancelledNumbers")}</p>
+          {cancelledNumbers.length === 0 ? <p className="text-xs text-gray-400 italic">{t("cancelledNone")}</p> : <div className="flex flex-wrap gap-1.5">{cancelledNumbers.map(num => <span key={num} className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">{t("ticketNumber", { num })}</span>)}</div>}
         </div>
 
         <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-100">
-          <p className="text-[10px] text-gray-400 font-black mb-1.5 text-center tracking-wider">📊 発行済みバッジ一覧（緑が現在呼び出し中）</p>
+          <p className="text-[10px] text-gray-400 font-black mb-1.5 text-center tracking-wider">{t("calledBadgeLegend")}</p>
           <div className="flex flex-wrap justify-center gap-1.5 max-h-24 overflow-y-auto">
             {issuedTickets.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">未発券</p>
+              <p className="text-xs text-gray-400 italic">{t("notIssued")}</p>
             ) : (
               issuedTickets.map((num) => {
                 const isCalling = calledNumbers.includes(num);
-                return <span key={num} className={`text-[11px] font-bold px-2 py-0.5 rounded border transition-all ${isCalling ? "bg-green-500 text-white border-green-600 font-black animate-pulse" : "bg-white text-gray-600 border-gray-200"}`}>{num}番</span>;
+                return <span key={num} className={`text-[11px] font-bold px-2 py-0.5 rounded border transition-all ${isCalling ? "bg-green-500 text-white border-green-600 font-black animate-pulse" : "bg-white text-gray-600 border-gray-200"}`}>{t("ticketNumber", { num })}</span>;
               })
             )}
           </div>
@@ -211,25 +226,25 @@ export default function AdminTicketPage() {
             {["1","2","3","4","5","6","7","8","9"].map(n => <button key={n} onClick={() => setCalculatorInput(p => p + n)} className="py-3 bg-gray-800 text-white font-black text-xl rounded-xl">{n}</button>)}
             <button onClick={() => setCalculatorInput("")} className="py-3 bg-gray-600 text-white font-black text-xl rounded-xl">C</button>
             <button onClick={() => setCalculatorInput(p => p + "0")} className="py-3 bg-gray-800 text-white font-black text-xl rounded-xl">0</button>
-            <button onClick={() => { executeCall(Number(calculatorInput)); setCalculatorInput(""); }} className="py-3 bg-green-600 text-white font-bold text-sm rounded-xl">呼出</button>
+            <button onClick={() => { executeCall(Number(calculatorInput)); setCalculatorInput(""); }} className="py-3 bg-green-600 text-white font-bold text-sm rounded-xl">{t("call")}</button>
           </div>
         </div>
 
         <div className="border-t pt-3">
-          <p className="text-xs font-black text-gray-500 mb-2">📋 各番号の操作（三択リスト）</p>
+          <p className="text-xs font-black text-gray-500 mb-2">{t("numberOperations")}</p>
           <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
             {issuedTickets.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-4">発券された番号はありません</p>
+              <p className="text-xs text-gray-400 italic text-center py-4">{t("noIssuedNumbers")}</p>
             ) : (
               issuedTickets.map((num) => {
                 const isCalled = calledNumbers.includes(num);
                 return (
                   <div key={num} className={`flex items-center justify-between p-2 rounded-xl border text-xs ${isCalled ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-150"}`}>
-                    <span className="font-black text-gray-700 w-16">{num}番 {isCalled && "📢"}</span>
+                    <span className="font-black text-gray-700 w-16">{t("ticketNumber", { num })} {isCalled && "📢"}</span>
                     <div className="flex gap-1">
-                      <button onClick={() => executeCall(num)} className={`px-2 py-1 rounded font-bold text-[10px] ${isCalled ? "bg-green-600 text-white" : "bg-white border text-green-600"}`}>呼出</button>
-                      <button onClick={() => executeUndoCall(num)} disabled={!isCalled} className="px-2 py-1 bg-white border text-red-500 disabled:opacity-30 rounded font-bold text-[10px]">呼出取消</button>
-                      <button onClick={() => executeUndoIssue(num)} disabled={isCalled} className="px-2 py-1 bg-white border text-orange-600 disabled:opacity-30 rounded font-bold text-[10px]">発券取消</button>
+                      <button onClick={() => executeCall(num)} className={`px-2 py-1 rounded font-bold text-[10px] ${isCalled ? "bg-green-600 text-white" : "bg-white border text-green-600"}`}>{t("call")}</button>
+                      <button onClick={() => executeUndoCall(num)} disabled={!isCalled} className="px-2 py-1 bg-white border text-red-500 disabled:opacity-30 rounded font-bold text-[10px]">{t("undoCall")}</button>
+                      <button onClick={() => executeUndoIssue(num)} disabled={isCalled} className="px-2 py-1 bg-white border text-orange-600 disabled:opacity-30 rounded font-bold text-[10px]">{t("undoIssue")}</button>
                     </div>
                   </div>
                 );
@@ -238,14 +253,14 @@ export default function AdminTicketPage() {
           </div>
         </div>
 
-        <button onClick={handleNextCall} className="w-full py-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-base mt-6">📢 次の連番を呼び出す</button>
+        <button onClick={handleNextCall} className="w-full py-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-base mt-6">{t("callNext")}</button>
         
         <div className="border-t mt-4 pt-3 flex flex-col gap-3 text-center">
           <button onClick={handleResetRanking} className="text-amber-600 hover:text-amber-700 text-xs font-black underline bg-amber-50 py-1.5 rounded-lg border border-amber-200 transition-colors">
-            🏆 シューティングゲームのランキングのみを全リセット
+            {t("resetRankingButton")}
           </button>
           <button onClick={handleResetAll} className="text-gray-400 hover:text-red-500 text-xs font-bold underline mt-1">
-            🛠️ 整理券データを全リセット
+            {t("resetTicketsButton")}
           </button>
         </div>
       </div>

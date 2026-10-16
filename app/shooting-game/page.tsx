@@ -3,8 +3,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue, set, remove } from "firebase/database";
+import { useLanguage } from "../language";
 
 export default function ShootingGamePage() {
+  const { t } = useLanguage();
   const [playerName, setPlayerName] = useState("");
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [gameState, setGameState] = useState<{ name: string; score: number; status: string }>({
@@ -48,7 +50,7 @@ export default function ShootingGamePage() {
         if (data.status === "playing" && data.score > lastScoreRef.current) {
           const audio = new Audio("/hit.mp3");
           audio.volume = 1.0;
-          audio.play().catch((err) => console.log("音声再生制限:", err));
+          audio.play().catch((err) => console.log("Audio playback is restricted:", err));
         }
         lastScoreRef.current = data.score;
       } else {
@@ -63,7 +65,7 @@ export default function ShootingGamePage() {
   // Create a waiting room and issue a four-digit code.
   const handleStartGame = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim()) return alert("名前を入力してください");
+    if (!playerName.trim()) return alert(t("enterNameAlert"));
 
     lastScoreRef.current = 0;
     const newPin = generatePinCode();
@@ -78,8 +80,8 @@ export default function ShootingGamePage() {
   setGameState({ name: playerName.trim(), score: 0, status: "waiting" });
       setPinCode(newPin);
     } catch (error) {
-      console.error("ゲーム開始エラー:", error);
-      alert("接続に失敗しました。");
+      console.error(t("gameStartError"), error);
+      alert(t("connectionFailed"));
     }
   };
 
@@ -100,10 +102,10 @@ export default function ShootingGamePage() {
           score: currentScore,
           date: new Date().toLocaleTimeString()
         });
-        alert(`🎉 ${currentName}さんのスコア（${currentScore}点）をランキングに保存しました！`);
+        alert(t("saveScoreSuccess", { name: currentName, score: currentScore }));
       }
     } catch (error) {
-      console.error("ランキング保存エラー:", error);
+      console.error(t("saveRankingError"), error);
     } finally {
       // Delete this room from Firebase when the game ends.
       await remove(ref(db, `game_pins/${pinCode}`));
@@ -116,53 +118,53 @@ export default function ShootingGamePage() {
     <div className="max-w-md mx-auto min-h-screen p-6 bg-slate-900 text-white flex flex-col justify-center">
       <div className="p-6 bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 text-center">
         <h1 className="text-2xl font-black text-amber-400 mb-2 flex items-center justify-center gap-2">
-          🔫 リアルタイム・的当てマシン
+          {t("shootingTitle")}
         </h1>
-        <p className="text-xs text-slate-400 mb-6">複数人が同時にアクセスしてそれぞれのゲームを遊べます</p>
+        <p className="text-xs text-slate-400 mb-6">{t("shootingIntro")}</p>
 
         {!pinCode ? (
           <form onSubmit={handleStartGame} className="flex flex-col gap-4">
             {/* Player name form */}
             <input
               type="text"
-              placeholder="プレイヤー名を入力..."
+              placeholder={t("playerNamePlaceholder")}
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               className="p-3 rounded-xl bg-slate-700 border border-slate-600 text-white text-center font-bold focus:outline-none focus:border-amber-400 text-lg"
             />
             <button type="submit" className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl text-lg shadow-lg transition-all active:scale-95">
-              🎯 ゲームを準備する
+              {t("prepareGame")}
             </button>
           </form>
         ) : gameState.status === "waiting" ? (
           <div className="animate-pulse">
             {/* Waiting for the target-game app to connect */}
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 mb-4">
-              <p className="text-xs text-amber-400 font-bold tracking-wider">の画面に次のコードを入力してください</p>
+              <p className="text-xs text-amber-400 font-bold tracking-wider">{t("enterCodePrompt")}</p>
               <p className="text-5xl font-mono font-black tracking-widest text-white mt-3">{pinCode}</p>
             </div>
-            <p className="text-xs text-slate-500">的のアプリが接続すると自動でゲーム画面に切り替わります...</p>
+            <p className="text-xs text-slate-500">{t("targetAppWaiting")}</p>
             <button onClick={() => { remove(ref(db, `game_pins/${pinCode}`)); setPinCode(null); }} className="mt-6 text-xs text-rose-400 underline font-bold">
-              キャンセル
+              {t("cancel")}
             </button>
           </div>
         ) : (
           <div className="transition-all duration-300">
             {/* Active game screen */}
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
-              <p className="text-xs text-emerald-400 font-bold tracking-wider">● 接続中 - PLAYING</p>
-              <p className="text-xl font-black text-amber-300 mt-1">{gameState.name} 選手</p>
+              <p className="text-xs text-emerald-400 font-bold tracking-wider">{t("connectedPlaying")}</p>
+              <p className="text-xl font-black text-amber-300 mt-1">{gameState.name}{t("playerSuffix") ? ` ${t("playerSuffix")}` : ""}</p>
             </div>
 
             <div className="my-8">
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">現在のスコア</p>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{t("currentScore")}</p>
               <p className="text-7xl font-black text-emerald-400 font-mono tracking-tighter drop-shadow-[0_0_15px_rgba(52,211,153,0.3)] mt-2">
-                {gameState.score} <span className="text-xl text-slate-400">点</span>
+                {gameState.score} <span className="text-xl text-slate-400">{t("points")}</span>
               </p>
             </div>
 
             <button onClick={handleEndGame} className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-all shadow-md">
-              🏁 ゲームを終了してランキングに保存
+              {t("finishAndSave")}
             </button>
           </div>
         )}

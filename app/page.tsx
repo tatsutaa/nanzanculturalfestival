@@ -1,6 +1,12 @@
+"use client";
+
 import React from "react";
+import { useLanguage } from "./language";
 
 export default function Home() {
+  const { t } = useLanguage();
+  const greeting = t("homeGreeting").split("|");
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 font-sans flex flex-col justify-center items-center p-4">
       {/* Main welcome panel */}
@@ -12,10 +18,10 @@ export default function Home() {
             S2 Classroom Exhibition
           </span>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight mt-3 bg-gradient-to-r from-amber-200 via-orange-300 to-amber-200 bg-clip-text text-transparent">
-            こんにちは！<br />S2の展示へようこそ！
+            {greeting[0]}<br />{greeting[1]}
           </h1>
           <p className="text-xs text-slate-300 mt-2 font-medium">
-            整理券を引いて、リアルタイム的当てゲームに挑戦しよう！
+            {t("homeIntro")}
           </p>
         </div>
 
@@ -29,8 +35,8 @@ export default function Home() {
           >
             <div className="text-left">
               <span className="text-xl mr-2">🍿</span>
-              <span className="font-extrabold text-sm sm:text-base tracking-wide">整理券の発行はこちら！</span>
-              <p className="text-[10px] text-blue-200/90 font-medium mt-0.5">スマホで待ち人数を確認できます</p>
+              <span className="font-extrabold text-sm sm:text-base tracking-wide">{t("ticketLink")}</span>
+              <p className="text-[10px] text-blue-200/90 font-medium mt-0.5">{t("ticketLinkDescription")}</p>
             </div>
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">GO ➔</span>
           </a>
@@ -42,8 +48,8 @@ export default function Home() {
           >
             <div className="text-left">
               <span className="text-xl mr-2">🔫</span>
-              <span className="font-extrabold text-sm sm:text-base tracking-wide">的当てゲームをプレイ！</span>
-              <p className="text-[10px] text-emerald-200/90 font-medium mt-0.5">名前を入力してリアルタイム加算スタート</p>
+              <span className="font-extrabold text-sm sm:text-base tracking-wide">{t("playLink")}</span>
+              <p className="text-[10px] text-emerald-200/90 font-medium mt-0.5">{t("playLinkDescription")}</p>
             </div>
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">PLAY ➔</span>
           </a>
@@ -55,21 +61,25 @@ export default function Home() {
           >
             <div className="text-left">
               <span className="text-xl mr-2">🎯</span>
-              <span className="font-extrabold text-sm sm:text-base tracking-wide">点数のランキングはこちら！</span>
-              <p className="text-[10px] text-amber-200/90 font-medium mt-0.5">高得点を目指して1位に君臨しよう</p>
+              <span className="font-extrabold text-sm sm:text-base tracking-wide">{t("rankingLink")}</span>
+              <p className="text-[10px] text-amber-200/90 font-medium mt-0.5">{t("rankingLinkDescription")}</p>
             </div>
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">RANK ➔</span>
           </a>
 
         </div>
 
-        {/* Staff-only admin link */}
-        <div className="mt-8 border-t border-white/5 pt-4">
+        {/* Clearly signpost the protected staff area. */}
+        <div className="mt-6 border-t border-white/10 pt-5">
           <a 
             href="/tickets/admin" 
-            className="text-[11px] text-slate-400 hover:text-red-400 font-bold tracking-wider transition-colors"
+            className="flex items-center justify-between gap-3 rounded-xl border border-rose-300/20 bg-rose-950/40 px-4 py-3 text-left transition-colors hover:bg-rose-900/50"
           >
-            ⚙️ 店員専用管理画面（パスワード保護）
+            <span>
+              <span className="block text-sm font-bold text-rose-100">⚙️ {t("staffLink")}</span>
+              <span className="mt-0.5 block text-xs text-rose-200/70">{t("staffDescription")}</span>
+            </span>
+            <span className="shrink-0 text-xs font-bold text-rose-200">{t("adminLink")}</span>
           </a>
         </div>
 

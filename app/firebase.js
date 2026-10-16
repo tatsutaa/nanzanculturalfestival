@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database"; // Import the Realtime Database client.
 
 const firebaseConfig = {
@@ -15,7 +16,8 @@ const firebaseConfig = {
 
 // Reuse the existing app instance to avoid initializing Firebase more than once.
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
 const db = getDatabase(app, firebaseConfig.databaseURL);
 
 // Export the database instance for use throughout the application.
-export { db };
+export { auth, db };
