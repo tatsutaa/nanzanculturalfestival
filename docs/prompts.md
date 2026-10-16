@@ -16,6 +16,13 @@ Before initializing the AI collaborative session, the system parameters were str
 
 ---
 
+## 🏗️ 1.5 Architecture Decision Record (ADR)
+- **Phase 1 (PHP & GitHub Pages):** Attempted to deploy a dynamic backend using PHP on GitHub Pages. However, I discovered that GitHub Pages only supports static content hosting, making server-side PHP execution impossible due to platform architectural constraints.
+- **Phase 2 (Local Hosting):** Evaluated running a local PHP server on a personal machine. I quickly realized this setup failed to meet the system's high availability requirement for the cultural festival, as the web application would instantly go offline whenever the host PC was powered down or went to sleep.
+- **Phase 3 (Serverless Stack / Final Selection):** Pivoted to a modern serverless architecture combining **Next.js (App Router) + Vercel + Firebase**. This completely eliminated the need for continuous physical server management while simultaneously guaranteeing 24/7 cloud availability and sub-second real-time data synchronization.
+
+---
+
 ## 📝 2. Master System Prompt Template
 The following structural context was injected into the AI system prompt before any component or code block was requested. This isolated the AI's behavior to output only highly maintainable infrastructure:
 
