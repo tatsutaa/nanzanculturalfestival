@@ -1,14 +1,49 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { db } from "../../firebase"; 
 import { ref, onValue, set, get } from "firebase/database";
+
+const AUTH_STORAGE_KEY = "is_admin_authenticated";
+const AUTH_CHANGE_EVENT = "admin-auth-state-change";
+
+// Subscribe to login changes from other tabs and this tab.
+function subscribeToAuth(onStoreChange: () => void) {
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === AUTH_STORAGE_KEY || event.key === null) onStoreChange();
+  };
+
+  window.addEventListener("storage", handleStorageChange);
+  window.addEventListener(AUTH_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorageChange);
+    window.removeEventListener(AUTH_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function getAuthSnapshot() {
+  return localStorage.getItem(AUTH_STORAGE_KEY) === "true";
+}
+
+// Keep server rendering and initial hydration unauthenticated.
+function getServerAuthSnapshot() {
+  return false;
+}
+
+function notifyAuthChange() {
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
+}
 
 export default function AdminTicketPage() {
   const [issuedTickets, setIssuedTickets] = useState<number[]>([]); 
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
   const [cancelledNumbers, setCancelledNumbers] = useState<number[]>([]); 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const isAuthenticated = useSyncExternalStore(
+    subscribeToAuth,
+    getAuthSnapshot,
+    getServerAuthSnapshot,
+  );
   const [passwordInput, setPasswordInput] = useState("");
   const [calculatorInput, setCalculatorInput] = useState(""); 
   const [errorMsg, setErrorMsg] = useState("");
@@ -16,9 +51,8 @@ export default function AdminTicketPage() {
   const ADMIN_PASSWORD = "Tacchan";
 
   useEffect(() => {
-    if (localStorage.getItem("is_admin_authenticated") === "true") setIsAuthenticated(true);
-    
-    onValue(ref(db, "issued_tickets"), (snapshot) => {
+    // Keep the ticket lists synchronized with Firebase.
+    const unsubscribeIssued = onValue(ref(db, "issued_tickets"), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setIssuedTickets(Object.keys(data).map(Number).sort((a, b) => a - b));
@@ -27,32 +61,34 @@ export default function AdminTicketPage() {
       }
     });
 
-    onValue(ref(db, "calling_now_list"), (snapshot) => {
+    const unsubscribeCalling = onValue(ref(db, "calling_now_list"), (snapshot) => {
       const data = snapshot.val();
       setCalledNumbers(data ? Object.values(data).map(Number) : []);
     });
 
-    onValue(ref(db, "cancelled_numbers"), (snapshot) => {
+    const unsubscribeCancelled = onValue(ref(db, "cancelled_numbers"), (snapshot) => {
       const data = snapshot.val();
       setCancelledNumbers(data ? Object.keys(data).map(Number).sort((a, b) => a - b) : []);
     });
+
+    // Stop listening when the admin page unmounts.
+    return () => {
+      unsubscribeIssued();
+      unsubscribeCalling();
+      unsubscribeCancelled();
+    };
   }, []);
 
+  // Verify the password and persist successful authentication in browser storage.
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      localStorage.setItem("is_admin_authenticated", "true");
+      localStorage.setItem(AUTH_STORAGE_KEY, "true");
+      notifyAuthChange();
     } else { setErrorMsg("❌ パスワード不一致"); }
   };
 
-  const updateHistory = async (num: number) => {
-    const s = await get(ref(db, "call_history"));
-    const cur: number[] = s.val() ? Object.values(s.val()).map(Number) : [];
-    const updated = [num, ...cur.filter(n => n !== num)].slice(0, 4);
-    await set(ref(db, "call_history"), updated);
-  };
-
+  // Add a valid issued ticket to the active calling list.
   const executeCall = async (num: number) => {
     if (!num || num <= 0 || !issuedTickets.includes(num)) return alert("存在する正しい発券済み番号を指定してください");
     if (cancelledNumbers.includes(num)) {
@@ -67,6 +103,7 @@ export default function AdminTicketPage() {
     }
   };
 
+  // Remove a ticket from the active calling list after confirmation.
   const executeUndoCall = async (num: number) => {
     if (confirm(`${num}番の呼び出しを取り消しますか？`)) {
       const listRef = ref(db, "calling_now_list");
@@ -77,11 +114,12 @@ export default function AdminTicketPage() {
     }
   };
 
+  // Remove an issued ticket and update the last-issued number when needed.
   const executeUndoIssue = async (num: number) => {
     if (calledNumbers.includes(num)) return alert("呼び出し中の番号は発券取り消しできません。先に呼び出しを取り消してください。");
     if (confirm(`「${num}番」の発券を取り消します。この番号を持っているお客様の画面は自動的に「未発券」に戻ります。よろしいですか？`)) {
       
-      // 💡 【ここを修正】lastIssued を使用せず、リストの末尾の番号と比較する正しい記述に変更します
+      // If the latest ticket is removed, roll the counter back to the previous ticket.
       const maxIssued = issuedTickets.length > 0 ? Math.max(...issuedTickets) : 0;
       if (num === maxIssued) {
         const nextLast = issuedTickets.length > 1 ? issuedTickets[issuedTickets.length - 2] : 0;
@@ -93,6 +131,7 @@ export default function AdminTicketPage() {
     }
   };
 
+  // Call the lowest-numbered ticket that has not been called yet.
   const handleNextCall = async () => {
     const uncalled = issuedTickets.filter(num => !calledNumbers.includes(num));
     if (uncalled.length > 0) {
@@ -102,6 +141,7 @@ export default function AdminTicketPage() {
     }
   };
 
+  // Clear ticketing data while leaving the shooting-game leaderboard untouched.
   const handleResetAll = async () => {
     if (confirm("全ての整理券データを完全にリセットしますか？（※ランキングは消えません）")) {
       await set(ref(db, "last_issued_number"), 0);
@@ -112,10 +152,10 @@ export default function AdminTicketPage() {
     }
   };
 
-  // 🛠️ 【新機能】シューティングゲームのランキングデータだけを消去する処理
+  // Clear only the shooting-game leaderboard.
   const handleResetRanking = async () => {
     if (confirm("🏆 シューティングゲームのランキングデータを全て削除し、完全にリセットしますか？（※整理券データは消えません）")) {
-      await set(ref(db, "ranking"), null); // Firebaseの「ranking」の部屋を空っぽ(null)にします
+      await set(ref(db, "ranking"), null);
       alert("🗑️ ランキングを完全にリセットしました！");
     }
   };
@@ -138,7 +178,7 @@ export default function AdminTicketPage() {
       <div className="p-5 bg-white rounded-2xl shadow-xl border border-red-100">
         <div className="flex justify-between mb-4">
           <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 font-bold">管理ボード</span>
-          <button onClick={() => { setIsAuthenticated(false); localStorage.removeItem("is_admin_authenticated"); }} className="text-xs text-gray-400 hover:text-red-500 underline">🚪 ログアウト</button>
+          <button onClick={() => { localStorage.removeItem(AUTH_STORAGE_KEY); notifyAuthChange(); }} className="text-xs text-gray-400 hover:text-red-500 underline">🚪 ログアウト</button>
         </div>
         
         <div className="grid grid-cols-2 gap-4 mb-3">

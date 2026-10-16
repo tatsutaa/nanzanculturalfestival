@@ -1,4 +1,5 @@
 {
+  "_comment": "Define the project's basic information, execution commands, and dependent packages.",
   "name": "my-dynamic-site",
   "version": "0.1.0",
   "private": true,

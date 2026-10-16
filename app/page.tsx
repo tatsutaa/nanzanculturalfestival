@@ -3,10 +3,10 @@ import React from "react";
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 font-sans flex flex-col justify-center items-center p-4">
-      {/* 🌟 メインコンテナ */}
+      {/* Main welcome panel */}
       <main className="w-full max-w-xl bg-white/10 backdrop-blur-md rounded-3xl shadow-2xl border border-white/10 p-6 sm:p-8 text-center text-white">
         
-        {/* 🎉 タイトルエリア */}
+        {/* Exhibition title and introduction */}
         <div className="mb-8 animate-fade-in">
           <span className="text-xs font-black tracking-widest text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full uppercase">
             S2 Classroom Exhibition
@@ -19,10 +19,10 @@ export default function Home() {
           </p>
         </div>
 
-        {/* 🗺️ メニューリンク（美しいカード型配列） */}
+        {/* Main navigation links */}
         <div className="flex flex-col gap-4">
           
-          {/* 🎟️ カード1: 整理券発行 */}
+          {/* Ticket booking link */}
           <a 
             href="/tickets" 
             className="group relative flex items-center justify-between p-4 bg-gradient-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-500 hover:to-indigo-500 rounded-2xl border border-blue-400/20 shadow-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
@@ -35,7 +35,7 @@ export default function Home() {
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">GO ➔</span>
           </a>
 
-          {/* 🔫 カード2: 的当てゲーム画面 */}
+          {/* Shooting game link */}
           <a 
             href="/shooting-game" 
             className="group relative flex items-center justify-between p-4 bg-gradient-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-500 rounded-2xl border border-emerald-400/20 shadow-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
@@ -48,7 +48,7 @@ export default function Home() {
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">PLAY ➔</span>
           </a>
 
-          {/* 🏆 カード3: スコアランキング */}
+          {/* Score leaderboard link */}
           <a 
             href="/realtime-ranking" 
             className="group relative flex items-center justify-between p-4 bg-gradient-to-r from-amber-600/80 to-orange-600/80 hover:from-amber-500 hover:to-orange-500 rounded-2xl border border-amber-400/20 shadow-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
@@ -63,7 +63,7 @@ export default function Home() {
 
         </div>
 
-        {/* 👨‍🍳 店員専用の隠しリンク */}
+        {/* Staff-only admin link */}
         <div className="mt-8 border-t border-white/5 pt-4">
           <a 
             href="/tickets/admin" 

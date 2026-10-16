@@ -15,18 +15,16 @@ export default function ShootingGamePage() {
 
   const lastScoreRef = useRef<number>(0);
 
-  // 🔹 4桁のランダムな数字コードを生成
+  // Generate a random four-digit access code.
   const generatePinCode = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
-  // 🛠️ 【追加】スマホのスリープ復帰やタブ切り替え（Back-Forward Cache対策）の監視
+  // Monitor when the page becomes visible again after sleep or a tab switch.
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // スマホがスリープから復帰したり、別タブから戻ってきたとき
       if (document.visibilityState === "visible") {
-        console.log("ブラウザがアクティブに戻りました。接続を維持します。");
-        // Firebaseは自動で再接続を試みます
+        console.log("The browser is active again; Firebase will reconnect automatically.");
       }
     };
 
@@ -34,10 +32,9 @@ export default function ShootingGamePage() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  // 🔹 自分専用の部屋（game_pins/4桁コード）のスコア・状態をリアルタイム監視
+  // Subscribe to score and status updates for this player's room.
   useEffect(() => {
     if (!pinCode) {
-      setGameState({ name: "", score: 0, status: "waiting" });
       lastScoreRef.current = 0;
       return;
     }
@@ -47,7 +44,7 @@ export default function ShootingGamePage() {
       const data = snapshot.val();
       if (data) {
         setGameState(data);
-        // 的アプリから加算されてスコアが増えたら音を鳴らす
+        // Play a sound when the target-game app increases the score.
         if (data.status === "playing" && data.score > lastScoreRef.current) {
           const audio = new Audio("/hit.mp3");
           audio.volume = 1.0;
@@ -55,7 +52,7 @@ export default function ShootingGamePage() {
         }
         lastScoreRef.current = data.score;
       } else {
-        // 的アプリ側で消された、または切断された場合は初期状態に戻す
+        // Return to the start screen if the room was deleted or disconnected.
         setPinCode(null);
       }
     });
@@ -63,7 +60,7 @@ export default function ShootingGamePage() {
     return () => unsubscribe();
   }, [pinCode]);
 
-  // 🎯 ゲーム開始（待機部屋を作成して4桁コードを発行）
+  // Create a waiting room and issue a four-digit code.
   const handleStartGame = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) return alert("名前を入力してください");
@@ -78,6 +75,7 @@ export default function ShootingGamePage() {
         status: "waiting"
       });
 
+  setGameState({ name: playerName.trim(), score: 0, status: "waiting" });
       setPinCode(newPin);
     } catch (error) {
       console.error("ゲーム開始エラー:", error);
@@ -85,7 +83,7 @@ export default function ShootingGamePage() {
     }
   };
 
-  // 🏁 ゲームを終了してランキングに記録する処理
+  // Save the final score to the leaderboard and end the game.
   const handleEndGame = async () => {
     if (!pinCode) return;
 
@@ -96,7 +94,7 @@ export default function ShootingGamePage() {
       if (currentName && currentName.trim() && currentScore > 0) {
         const uniqueId = `${currentName.trim()}_${Date.now()}`;
 
-        // ランキングの部屋へ保存
+        // Save this game as a new leaderboard entry.
         await set(ref(db, `ranking/${uniqueId}`), {
           name: currentName.trim(),
           score: currentScore,
@@ -107,7 +105,7 @@ export default function ShootingGamePage() {
     } catch (error) {
       console.error("ランキング保存エラー:", error);
     } finally {
-      // 遊び終わったのでFirebaseからこの4桁コードの部屋を削除
+      // Delete this room from Firebase when the game ends.
       await remove(ref(db, `game_pins/${pinCode}`));
       setPinCode(null);
       setPlayerName("");
@@ -123,8 +121,8 @@ export default function ShootingGamePage() {
         <p className="text-xs text-slate-400 mb-6">複数人が同時にアクセスしてそれぞれのゲームを遊べます</p>
 
         {!pinCode ? (
-          /* 📥 名前入力画面 */
           <form onSubmit={handleStartGame} className="flex flex-col gap-4">
+            {/* Player name form */}
             <input
               type="text"
               placeholder="プレイヤー名を入力..."
@@ -137,8 +135,8 @@ export default function ShootingGamePage() {
             </button>
           </form>
         ) : gameState.status === "waiting" ? (
-          /* 🔢 的アプリへの接続コード待機画面 */
           <div className="animate-pulse">
+            {/* Waiting for the target-game app to connect */}
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 mb-4">
               <p className="text-xs text-amber-400 font-bold tracking-wider">の画面に次のコードを入力してください</p>
               <p className="text-5xl font-mono font-black tracking-widest text-white mt-3">{pinCode}</p>
@@ -149,8 +147,8 @@ export default function ShootingGamePage() {
             </button>
           </div>
         ) : (
-          /* 🎮 プレイ中画面 */
           <div className="transition-all duration-300">
+            {/* Active game screen */}
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
               <p className="text-xs text-emerald-400 font-bold tracking-wider">● 接続中 - PLAYING</p>
               <p className="text-xl font-black text-amber-300 mt-1">{gameState.name} 選手</p>

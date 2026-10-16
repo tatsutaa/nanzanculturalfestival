@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue } from "firebase/database";
 
+// One ranking entry retrieved from Firebase.
 interface RankingItem {
   id: string;
   name: string;
@@ -12,20 +13,18 @@ interface RankingItem {
 
 export default function RealtimeRankingPage() {
   const [items, setItems] = useState<RankingItem[]>([]);
-  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setIsHydrated(true);
-
+    // Subscribe to ranking updates and rebuild the list whenever the data changes.
     const rankingRef = ref(db, "ranking");
     const unsubscribe = onValue(rankingRef, (snapshot) => {
       const data = snapshot.val();
       
       if (data) {
-        // 💡 修正：Firebaseから取得したユニークID（鍵）から、純粋なプレイヤー名とスコアを読み込みます
+        // Keep each Firebase key as the display ID, and read the name and numeric score.
         const formattedList = Object.keys(data).map((key) => ({
           id: key,
-          name: data[key].name, // 💡 保存された純粋な名前を使用
+          name: data[key].name,
           score: Number(data[key].score),
         }));
         setItems(formattedList);
@@ -34,12 +33,12 @@ export default function RealtimeRankingPage() {
       }
     });
 
+    // Unsubscribe when leaving the page to prevent unnecessary updates.
     return () => unsubscribe();
   }, []);
 
+  // Sort a copy of the state array by score, leaving the original unchanged.
   const sortedItems = [...items].sort((a, b) => b.score - a.score);
-
-  if (!isHydrated) return null;
 
   return (
     <div className="max-w-md mx-auto min-h-screen p-6 bg-gray-50 flex flex-col justify-center">
@@ -56,6 +55,7 @@ export default function RealtimeRankingPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {sortedItems.map((item, index) => {
+              // Array indexes start at zero, so add one for the displayed rank.
               const rank = index + 1;
               return (
                 <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 animate-fade-in">

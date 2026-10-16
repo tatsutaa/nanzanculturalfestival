@@ -1,3 +1,4 @@
+<!-- Points to Note When Modifying Next.js Code -->
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

@@ -1,30 +1,67 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { db } from "../firebase"; 
 import { ref, onValue, set, get } from "firebase/database";
 
+const TICKET_STORAGE_KEY = "my_ticket_number";
+const TICKET_CHANGE_EVENT = "ticket-number-change";
+
+// Subscribe to ticket changes made in this tab or another browser tab.
+function subscribeToTicketNumber(onStoreChange: () => void) {
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === TICKET_STORAGE_KEY || event.key === null) onStoreChange();
+  };
+
+  window.addEventListener("storage", handleStorageChange);
+  window.addEventListener(TICKET_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorageChange);
+    window.removeEventListener(TICKET_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function getTicketNumberSnapshot() {
+  return localStorage.getItem(TICKET_STORAGE_KEY);
+}
+
+// Use the same initial ticket state for server rendering and hydration.
+function getServerTicketNumberSnapshot() {
+  return null;
+}
+
+function saveTicketNumber(value: string | null) {
+  if (value === null) {
+    localStorage.removeItem(TICKET_STORAGE_KEY);
+  } else {
+    localStorage.setItem(TICKET_STORAGE_KEY, value);
+  }
+
+  window.dispatchEvent(new Event(TICKET_CHANGE_EVENT));
+}
+
 export default function TicketPage() {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]); 
-  const [issuedTickets, setIssuedTickets] = useState<number[]>([]); // 💡 本当に存在するチケット
-  const [myNumber, setMyNumber] = useState<number | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [issuedTickets, setIssuedTickets] = useState<number[]>([]);
+  const savedTicketNumber = useSyncExternalStore(
+    subscribeToTicketNumber,
+    getTicketNumberSnapshot,
+    getServerTicketNumberSnapshot,
+  );
+  const myNumber = savedTicketNumber === null ? null : Number(savedTicketNumber);
   
   const [isSoundEnabled, setIsSoundEnabled] = useState(false); 
   const lastPlayedNumber = useRef<number | null>(null);
 
   useEffect(() => {
-    const savedNumber = localStorage.getItem("my_ticket_number");
-    if (savedNumber) setMyNumber(Number(savedNumber));
-    setIsHydrated(true);
-
-    // 📢 1. 現在呼び出し中のリストを監視 ＋ 🔊 音を鳴らす
-    onValue(ref(db, "calling_now_list"), (snapshot) => {
+    // Subscribe to active calls and play a chime when this ticket is called.
+    const unsubscribeCalling = onValue(ref(db, "calling_now_list"), (snapshot) => {
       const data = snapshot.val();
       const list: number[] = data ? Object.values(data).map(Number) : [];
       setCalledNumbers(list);
 
-      const mySavedNumber = localStorage.getItem("my_ticket_number");
+      const mySavedNumber = localStorage.getItem(TICKET_STORAGE_KEY);
       if (mySavedNumber && list.length > 0) {
         const myNum = Number(mySavedNumber);
         if (list.includes(myNum) && lastPlayedNumber.current !== myNum && isSoundEnabled) {
@@ -36,33 +73,37 @@ export default function TicketPage() {
       }
     });
 
-    // 📢 2. 発行済みのリアルタイムリストを監視（ズレ連動対策）
-    onValue(ref(db, "issued_tickets"), (snapshot) => {
+    // Keep the issued-ticket list in sync and clear tickets removed by an admin.
+    const unsubscribeIssued = onValue(ref(db, "issued_tickets"), (snapshot) => {
       const data = snapshot.val();
-      const mySavedNumber = localStorage.getItem("my_ticket_number");
+      const mySavedNumber = localStorage.getItem(TICKET_STORAGE_KEY);
       
       if (data) {
         const activeList = Object.keys(data).map(Number).sort((a, b) => a - b);
         setIssuedTickets(activeList);
 
-        // 💡 店員に自分の番号をピンポイントで消されたら、即座に「未発券」に戻す
+        // Clear this ticket if an admin removes it.
         if (mySavedNumber && !data[Number(mySavedNumber)]) {
-          setMyNumber(null);
-          localStorage.removeItem("my_ticket_number");
+          saveTicketNumber(null);
           localStorage.removeItem("is_sound_enabled");
           setIsSoundEnabled(false);
         }
       } else {
-        // クラウドが空（全リセット）のとき
         setIssuedTickets([]);
-        setMyNumber(null);
-        localStorage.removeItem("my_ticket_number");
+        saveTicketNumber(null);
         localStorage.removeItem("is_sound_enabled");
         setIsSoundEnabled(false);
       }
     });
+
+    // Stop listening when the ticket page unmounts.
+    return () => {
+      unsubscribeCalling();
+      unsubscribeIssued();
+    };
   }, [isSoundEnabled]); 
 
+  // Claim the next ticket number and store it for this browser.
   const handleIssueTicket = async () => {
     if (myNumber !== null) return;
     const lastIssuedRef = ref(db, "last_issued_number");
@@ -70,14 +111,13 @@ export default function TicketPage() {
     const lastNumber = snapshot.val() || 0;
     const nextTicketNumber = lastNumber + 1; 
 
-    // クラウド上にこの番号の席をしっかり独立して確保
     await set(ref(db, `issued_tickets/${nextTicketNumber}`), true);
     await set(lastIssuedRef, nextTicketNumber);
     
-    setMyNumber(nextTicketNumber);
-    localStorage.setItem("my_ticket_number", String(nextTicketNumber));
+    saveTicketNumber(String(nextTicketNumber));
   };
 
+  // Test audio playback first so the browser can grant permission for future chimes.
   const toggleSoundSwitch = () => {
     if (!isSoundEnabled) {
       const audioTest = new Audio("/chime.mp3");
@@ -90,19 +130,18 @@ export default function TicketPage() {
     }
   };
 
+  // Mark this ticket as cancelled and remove it from the active ticket list.
   const handleCancelTicket = async () => {
     if (myNumber === null) return;
     if (confirm("この整理券を取り消しますか？")) {
       await set(ref(db, `cancelled_numbers/${myNumber}`), true);
-      await set(ref(db, `issued_tickets/${myNumber}`), null); // 自分の意思で消滅させる
-      setMyNumber(null);
-      localStorage.removeItem("my_ticket_number");
+      await set(ref(db, `issued_tickets/${myNumber}`), null);
+      saveTicketNumber(null);
       localStorage.removeItem("is_sound_enabled");
       setIsSoundEnabled(false);
     }
   };
 
-  if (!isHydrated) return null;
   const isMyTurn = myNumber !== null && calledNumbers.includes(myNumber);
 
   return (
@@ -134,7 +173,7 @@ export default function TicketPage() {
           </div>
         )}
 
-        {/* 📊 発行済み羅列（バグ修正完了版） */}
+        {/* Issued ticket numbers */}
         <div className="border-t pt-4 mt-2">
           <p className="text-xs font-black text-gray-400 mb-2.5 text-center tracking-wider">📋 本日発券済みのすべての番号</p>
           <div className="flex flex-wrap justify-center gap-2 max-h-40 overflow-y-auto p-1 bg-gray-50 rounded-xl border border-gray-100">
