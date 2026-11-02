@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { signInAnonymously } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { ref, onValue, set, remove } from "firebase/database";
+import { ref, onValue, set, remove, update } from "firebase/database";
 import { useLanguage } from "../language";
 
 export default function ShootingGamePage() {
@@ -24,6 +23,17 @@ export default function ShootingGamePage() {
     return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
+  };
+
+  const handleBeginGame = async () => {
+    if (!pinCode) return;
+
+    try {
+      await update(ref(db, `game_pins/${pinCode}`), { status: "playing" });
+    } catch (error) {
+      console.error(t("gameStartError"), error);
+      alert(t("connectionFailed"));
+    }
   };
 
   // Monitor when the page becomes visible again after sleep or a tab switch.
@@ -50,7 +60,7 @@ export default function ShootingGamePage() {
       const data = snapshot.val();
       if (data) {
         setGameState(data);
-        // Play a sound when the target-game app increases the score.
+        // Play a sound when the Pico WH updates the score.
         if (data.status === "playing" && data.score > lastScoreRef.current) {
           const audio = new Audio("/hit.mp3");
           audio.volume = 1.0;
@@ -66,7 +76,7 @@ export default function ShootingGamePage() {
     return () => unsubscribe();
   }, [pinCode]);
 
-  // Authenticate the browser, create an owned room, and display its pairing QR code.
+  // Authenticate the browser and create an owned game room.
   const handleStartGame = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) return alert(t("enterNameAlert"));
@@ -146,23 +156,14 @@ export default function ShootingGamePage() {
             </button>
           </form>
         ) : gameState.status === "waiting" ? (
-          <div>
-            {/* Waiting for the target-game app to connect */}
-            <div className="bg-slate-900 p-5 rounded-xl border border-slate-700 mb-4">
-              <p className="text-xs text-amber-400 font-bold tracking-wider">{t("enterCodePrompt")}</p>
-              <div className="mx-auto mt-4 w-fit rounded-lg bg-white p-3">
-                <QRCodeSVG
-                  value={`${window.location.origin}/laser-game?room=${pinCode}`}
-                  size={220}
-                  level="H"
-                  marginSize={2}
-                  title={t("targetQrCaption")}
-                />
-              </div>
-              <p className="mt-3 text-sm font-bold text-white">{t("targetQrCaption")}</p>
-              <p className="mt-2 break-all font-mono text-[10px] text-slate-400">{pinCode}</p>
-            </div>
-            <p className="text-xs text-slate-500">{t("targetAppWaiting")}</p>
+          <div className="rounded-xl border border-slate-700 bg-slate-900 p-6">
+            <p className="text-sm text-slate-300">{t("targetConfirmStart")}</p>
+            <button
+              onClick={handleBeginGame}
+              className="mt-5 w-full rounded-lg bg-amber-400 px-5 py-4 font-black text-slate-950 transition-colors hover:bg-amber-300"
+            >
+              {t("targetStartButton")}
+            </button>
             <button onClick={() => { remove(ref(db, `game_pins/${pinCode}`)); setPinCode(null); }} className="mt-6 text-xs text-rose-400 underline font-bold">
               {t("cancel")}
             </button>
@@ -182,7 +183,7 @@ export default function ShootingGamePage() {
               </p>
             </div>
 
-            <button onClick={handleEndGame} className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-all shadow-md">
+            <button onClick={handleEndGame} className="mt-5 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all shadow-md">
               {t("finishAndSave")}
             </button>
           </div>

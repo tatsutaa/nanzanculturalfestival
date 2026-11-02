@@ -10,10 +10,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@zxing/browser": "^0.2.1",
     "firebase": "^12.19.0",
     "next": "^16.4.2",
-    "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
