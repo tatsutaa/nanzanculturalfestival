@@ -1,4 +1,4 @@
-import { applicationDefault, getApp, getApps, initializeApp } from "firebase-admin/app";
+import { cert, getApp, getApps, initializeApp } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
 import isoCountries from "i18n-iso-countries";
 import japaneseLocale from "i18n-iso-countries/langs/ja.json";
@@ -266,9 +266,32 @@ export function getCountryOptions(): CountryOption[] {
 }
 
 export function getNewsDatabase() {
-	const app = getApps().length
-		? getApp()
-		: initializeApp({ credential: applicationDefault(), databaseURL });
+	if (getApps().length) {
+		return getDatabase(getApp());
+	}
+
+	const projectId = process.env.project_id ?? process.env.FIREBASE_PROJECT_ID;
+	const clientEmail = process.env.client_email ?? process.env.FIREBASE_CLIENT_EMAIL;
+	const privateKey = (process.env.private_key ?? process.env.FIREBASE_PRIVATE_KEY)?.replace(
+		/\\n/g,
+		"\n",
+	);
+
+	if (!projectId || !clientEmail || !privateKey) {
+		throw new Error(
+			"Firebase Admin の認証情報（project_id / client_email / private_key）が不足しています。",
+		);
+	}
+
+	const app = initializeApp({
+		credential: cert({
+			projectId,
+			clientEmail,
+			privateKey,
+		}),
+		databaseURL,
+	});
+
 	return getDatabase(app);
 }
 
