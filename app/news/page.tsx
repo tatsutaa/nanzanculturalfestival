@@ -44,11 +44,15 @@ export default function Page() {
 				}
 				const loadedSources = Array.isArray(data.sources) ? data.sources : [];
 				const loadedCountries = Array.isArray(data.countries) ? data.countries : [];
-				setSources(loadedSources);
+								setSources(loadedSources);
 				setCountries(loadedCountries);
-				if (!loadedCountries.some((item: CountryOption) => item.code === country)) {
-					setCountry(loadedCountries[0]?.code ?? "us");
-				}
+				setCountry((currentCountry) => {
+					if (!loadedCountries.some((item: CountryOption) => item.code === currentCountry)) {
+						return loadedCountries[0]?.code ?? "us";
+					}
+					return currentCountry;
+				});
+
 			} catch (err) {
 				if (err instanceof Error && err.name !== "AbortError") {
 					setError(err.message);
