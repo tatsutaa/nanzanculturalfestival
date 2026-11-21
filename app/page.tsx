@@ -66,6 +66,18 @@ export default function Home() {
             </div>
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">RANK ➔</span>
           </a>
+          {/* News link */}
+          <a 
+            href="/news" 
+            className="group relative flex items-center justify-between p-4 bg-gradient-to-r from-cyan-600/80 to-blue-600/80 hover:from-cyan-500 hover:to-blue-500 rounded-2xl border border-cyan-400/20 shadow-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+          >
+            <div className="text-left">
+              <span className="text-xl mr-2">📰</span>
+              <span className="font-extrabold text-sm sm:text-base tracking-wide">{t("newsLink")}</span>
+              <p className="text-[10px] text-cyan-200/90 font-medium mt-0.5">{t("newsLinkDescription")}</p>
+            </div>
+            <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold group-hover:bg-white/30 transition-colors">NEWS ➔</span>
+          </a>
 
         </div>
 
