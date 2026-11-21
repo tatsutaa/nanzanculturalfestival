@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KaTeX</title>
+  <!-- 同じフォルダ内のローカルファイルを直接読み込む -->
+  <link rel="stylesheet" href="katex/katex.min.css">
+  <script defer src="katex/katex.min.js"></script>
+  <script defer src="katex/contrib/auto-render.min.js"></script>
+</head>
+<body>
+  <section class="other-section js-fade">
+    <h2 class="section-title">KaTeXのテスト</h2>
+    <p>
+      このサイトは学問についてを記載しています<br>
+      $$
+      x^2 - 16 = (x + 4)(x - 4)
+      $$
+
+      $$
+      \left\{
+      \begin{aligned}
+      2x + y &= 5 \\
+      x - 3y &= -1
+      \end{aligned}
+      \right.
+      $$
+
+      $$
+      a^2 = b^2 + c^2 - 2bc \cos A
+      $$
+
+      $$
+      \int_{0}^{1} f(x) \ dx = \lim_{n \to \infty} \dfrac{1}{n} \sum_{k=0}^{n-1} f \left (\dfrac{k}{n} \right)
+      $$
+
+      $$
+      m \dfrac{d^2 \boldsymbol{r}}{dt^2} = \boldsymbol{F}
+      $$
+
+
+    </p>
+  </section>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left: "$$", right: "$$", display: true},
+          {left: "\\[", right: "\\]", display: true},
+          {left: "$", right: "$", display: false},
+          {left: "\\(", right: "\\)", display: false}
+        ]
+      });
+    });
+  </script>
+</body>
+</html>

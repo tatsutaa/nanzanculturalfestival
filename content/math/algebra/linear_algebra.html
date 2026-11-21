@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KaTeX</title>
+  <title>Linear Algebra</title>
   <!-- 同じフォルダ内のローカルファイルを直接読み込む -->
   <link rel="stylesheet" href="katex/katex.min.css">
   <script defer src="katex/katex.min.js"></script>
@@ -11,36 +11,20 @@
 </head>
 <body>
   <section class="other-section js-fade">
-    <h2 class="section-title">KaTeXのテスト</h2>
+    <h2 class="section-title">Linear Algebra</h2>
     <p>
-      これはKaTeXのテストです。<br>
-      以下の数式が正しく表示されるか確認してください。<br>
-      $$
-      x^2 - 16 = (x + 4)(x - 4)
-      $$
+      ここでは線形代数の基本的な概念を紹介します。線形代数は、ベクトル、行列、線形変換などの数学的構造を研究する分野です。以下にいくつかの基本的な数式を示します。<br>
+        $$
+        A \mathbf{x} = \mathbf{b}
+        $$
 
-      $$
-      \left\{
-      \begin{aligned}
-      2x + y &= 5 \\
-      x - 3y &= -1
-      \end{aligned}
-      \right.
-      $$
+        $$
+        \mathbf{v} \cdot \mathbf{w} = \|\mathbf{v}\| \|\mathbf{w}\| \cos \theta
+        $$
 
-      $$
-      a^2 = b^2 + c^2 - 2bc \cos A
-      $$
-
-      $$
-      \int_{0}^{1} f(x) \ dx = \lim_{n \to \infty} \dfrac{1}{n} \sum_{k=0}^{n-1} f \left (\dfrac{k}{n} \right)
-      $$
-
-      $$
-      m \dfrac{d^2 \boldsymbol{r}}{dt^2} = \boldsymbol{F}
-      $$
-
-
+        $$
+        \text{det}(A) = \sum_{\sigma \in S_n} \text{sgn}(\sigma) \prod_{i=1}^{n} a_{i, \sigma(i)}
+        $$
     </p>
   </section>
 

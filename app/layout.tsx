@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { LanguageProvider } from "./language";
 import "./globals.css";
+import "./katex/katex.min.css";
 
 // Load the site fonts and expose them as CSS variables for the global theme.
 const geistSans = Geist({

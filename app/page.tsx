@@ -82,7 +82,7 @@ export default function Home() {
 
           {/* Academic link */}
           <a 
-            href="/katex.html" 
+            href="/academic" 
             className="group relative flex items-center justify-between p-4 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-500 hover:to-pink-500 rounded-2xl border border-purple-400/20 shadow-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
           >
             <div className="text-left">
