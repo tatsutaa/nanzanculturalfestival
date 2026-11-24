@@ -1,4 +1,5 @@
 export const CATEGORY_LABELS: Record<string, string> = {
+    Base: "基礎",
     Aesthetics: "美学",
     Agriculture: "農学",
     Anthropology: "人類学",
@@ -16,6 +17,10 @@ export const CATEGORY_LABELS: Record<string, string> = {
     Linguistics: "言語学",
     Literature: "文学",
     Logic: "論理学",
+    "Formal-Logic": "形式論理学",
+    "Classical-Logic": "古典論理学",
+    "Non-Classical-Logic": "非古典論理学",
+    "Infomal-Logic": "非形式論理学",
     Mathematics: "数学",
     Medicine: "医学",
     Philosophy: "哲学",
@@ -24,4 +29,12 @@ export const CATEGORY_LABELS: Record<string, string> = {
     Psychology: "心理学",
     Sociology: "社会学",
     Statistics: "統計学",
+    "Descriptive-Statistics": "記述統計学",
+    "Inferential-Statistics": "推測統計学",
+
+    Collaboration: "応用",
+    "Learn-Math-From-Scratch": "数学を一から構築してみよう",
+    "Bayesian-Statistics": "ベイズ統計学",
+    "Mathematical-Statistics": "数理統計学",
+    "Mathematical-Logic": "数理論理学"
 };
