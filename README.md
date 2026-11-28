@@ -54,6 +54,9 @@ To reliably detect laser hits on a moving target under budget and physical const
 * **Mathematical Optical Design:** Because a single convex lens failed to maintain focus across varying target distances—and commercial parabolic mirrors exceeded budget—I mathematically calculated the focal length of a **quadratic curve (parabola)**, modeled the reflector in 3D CAD, printed it using a 3D printer, and lined it with aluminum foil to achieve reliable diffuse reflection.
 * **Rapid Prototyping:** Following the cultural festival, the digital queue ticketing module (`/tickets`) was designed and implemented within **one day** to eliminate paper waste and streamline visitor flow.
 
+* **Hardware Reliability & Safety (Field Maintenance):** During live operation at the cultural festival, standard electrical insulation tape repeatedly peeled off under mechanical stress, requiring frequent emergency repairs. To prevent short circuits and improve mechanical durability, I upgraded the wiring insulation to **heat-shrink tubing**.
+
+
 
 ## Project Notes
 
