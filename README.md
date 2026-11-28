@@ -54,7 +54,7 @@ To reliably detect laser hits on a moving target under budget and physical const
 * **Mathematical Optical Design:** Because a single convex lens failed to maintain focus across varying target distances—and commercial parabolic mirrors exceeded budget—I mathematically calculated the focal length of a **quadratic curve (parabola)**, modeled the reflector in 3D CAD, printed it using a 3D printer, and lined it with aluminum foil to achieve reliable diffuse reflection.
 
   ![3D Paraboloid & Laser Focusing Simulation](paraboloid_focusing.png)
-  *3D ray-tracing simulation (Python/Matplotlib) verifying optical convergence onto the sensor at focal point $(0, 0, 1.0)$.*
+  > **Figure:** 3D ray-tracing simulation (Python/Matplotlib) verifying optical convergence onto the sensor at focal point `(0, 0, 1.0)`.
 
 * **Rapid Prototyping:** Following the cultural festival, the digital queue ticketing module (`/tickets`) was designed and implemented within **one day** to eliminate paper waste and streamline visitor flow.
 
