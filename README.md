@@ -56,6 +56,102 @@ To reliably detect laser hits on a moving target under budget and physical const
 
 * **Hardware Reliability & Safety (Field Maintenance):** During live operation at the cultural festival, standard electrical insulation tape repeatedly peeled off under mechanical stress, requiring frequent emergency repairs. To prevent short circuits and improve mechanical durability, I upgraded the wiring insulation to **heat-shrink tubing**.
 
+# Universal Taxonomy of Knowledge: A 25-Domain Meta-Learning Platform
+
+A structured, hierarchical web platform designed to deconstruct human knowledge into **25 foundational academic domains** and systematically synthesize them into **applied, interdisciplinary patterns**.
+
+---
+
+## Core Philosophy: Orthogonal Decomposition of Knowledge
+Traditional academic classifications often suffer from ambiguity because they conflate **what** is being studied (the object of inquiry) with **how** it is studied (the methodology). 
+
+To eliminate this ambiguity, this system classifies all human knowledge along two orthogonal axes: **Object vs. Methodology**. Through this lens, academic disciplines are strictly decomposed into **25 atomic domains** grouped into three structural tiers:
+
+1. **Pure Core (16 Domains):** Disciplines where the object of inquiry and the methodology are completely aligned without structural overlap.
+2. **Boundary / Hybrid Domains (6 Domains):** Disciplines situated at the interface of two distinct paradigms, where the *object* belongs to one domain while the *methodology* belongs to another.
+3. **Applied Intervention Foundations (3 Domains):** Disciplines that go beyond observation and explanation to actively *intervene in and reshape* the physical or social world.
+
+---
+
+## The 25 Foundational Domains (Taxonomy)
+
+### Tier 1: Pure Core (16 Domains)
+Consistent alignment between object and methodology.
+
+* **Formal Sciences** *(Abstract symbols, logic, and formal rules)*
+  1. **Logic**
+  2. **Mathematics**
+  3. **Statistics**
+  4. **Computer Science**
+* **Natural Sciences** *(Physical laws of matter, energy, and life)*
+  5. **Physics**
+  6. **Chemistry**
+  7. **Biology**
+  8. **Geology / Earth Science**
+  9. **Astronomy**
+* **Humanities** *(Human meaning, values, and textual/artistic expression)*
+  10. **Philosophy**
+  11. **Ethics**
+  12. **Literature**
+  13. **Art Studies** *(Systematic analysis of artistic works and expression)*
+  14. **Aesthetics** *(Philosophical inquiry into beauty, taste, and value)*
+* **Social Sciences** *(Institutions, power, and collective human behavior)*
+  15. **Sociology**
+  16. **Political Science**
+
+*(Note: Art Studies and Aesthetics were explicitly separated to distinguish empirical/historical analysis of works from philosophical value judgment, forming a symmetric $5 \times 5$ matrix of 25 domains.)*
+
+### Tier 2: Boundary / Hybrid Domains (6 Domains)
+Defined by the structural tension between their object of study and their primary methodology.
+
+| Domain | Interface (Object × Methodology) | Structural Rationale |
+| :--- | :--- | :--- |
+| **17. Linguistics** | Humanities × Formal Science *(+ Social)* | Studies human language (Humanities), yet models syntax and semantics using formal rules and mathematical structures (Formal Science). |
+| **18. Psychology** | Natural Science × Social Science | Bridges neurobiology/perception experiments (Natural Science) and interpersonal/group dynamics (Social Science). |
+| **19. Cultural Anthropology** | Humanities × Social Science *(+ Natural)* | Combines hermeneutic interpretation of culture/myths (Humanities) with structural analysis of kinship/exchange (Social Science). |
+| **20. History** | Humanities × Social Science | Ranges from philological interpretation of texts (Humanities) to cliometrics and demographic modeling (Social Science). |
+| **21. Economics** | Social Science × Formal Science | Addresses societal resource allocation (Social Science) primarily through mathematical optimization and econometrics (Formal Science). |
+| **22. Law** | Social Science × Humanities | Designs institutional rules and conflict resolution (Social Science) via rigorous textual/hermeneutic interpretation (Humanities). |
+
+### Tier 3: Applied Intervention Foundations (3 Domains)
+Bridging fundamental science with real-world physical and societal intervention.
+
+| Domain | Structural Position | Nature of Intervention |
+| :--- | :--- | :--- |
+| **23. Medicine** | Natural Science × Clinical Practice | Built on Biology and Chemistry, driven by the ethical and practical imperative to diagnose and heal. |
+| **24. Engineering** | Natural Science × Formal Science × Design | Applies Physics and Mathematics to design and construct artificial systems not found in nature. |
+| **25. Agriculture** | Natural Science × Social Science × Practice | Integrates Biology and Earth Science with economics and environmental management for food production. |
+
+---
+
+## System Architecture & Learning Model
+
+### 1. Hierarchical Directory Structure (Current Implementation)
+* **Unified Overview:** All 25 foundational domains are accessible from a single top-level overview interface, allowing learners to grasp the entire map of human knowledge at a glance.
+* **Intuitive Folder Hierarchy:** Each domain is organized into a clean, predictable directory tree, separating core axioms, methodologies, and historical context.
+
+### 2. Combinatorial Synthesis of Applied Fields (In Development)
+Just as complex molecules are synthesized from elements in the periodic table, this platform treats **Applied Sciences** as systematic combinations (patterns) of the 25 foundational nodes:
+
+* **Example A (Computational Physics / Optical Simulation):**
+  `[02. Mathematics] + [04. Computer Science] + [05. Physics] + [24. Engineering]`
+* **Example B (Natural Language Processing / Computational Linguistics):**
+  `[01. Logic] + [04. Computer Science] + [17. Linguistics]`
+* **Example C (Computational Neuroscience):**
+  `[04. Computer Science] + [07. Biology] + [18. Psychology]`
+
+---
+
+## Development Roadmap
+* [x] **Phase 1: Taxonomy Definition** — Formalize the 25-domain classification system based on object-methodology orthogonality.
+* [x] **Phase 2: Core Hierarchy & Overview UI** — Implement the folder-based directory structure and unified single-page overview.
+* [ ] **Phase 3: Combinatorial Pattern Engine** — Build data models (JSON/Graph) to map and generate interdisciplinary applied fields from foundational combinations.
+* [ ] **Phase 4: Interactive Knowledge Graph** — Enable learners to traverse prerequisites and cross-domain connections visually.
+
+---
+
+## Author's Note
+This project is driven by a desire to move beyond fragmented, memorization-heavy curricula and explore the underlying structural unity of mathematics, language, natural sciences, and engineering.
 
 
 ## Project Notes
