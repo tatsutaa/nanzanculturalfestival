@@ -46,6 +46,15 @@ Open `/shooting-game`, enter a player name, and prepare the game. The page displ
 
 The optional PyQt5 client in `app/laser_game.py` is a passive room and score monitor; it does not add points. Its dependencies are listed in `app/requirements-laser-game.txt`; it requires a separately managed Firebase service-account JSON file and the `FIREBASE_SERVICE_ACCOUNT_PATH` environment variable. Keep that private key outside the repository.
 
+## Hardware & Optical Engineering Highlights
+To reliably detect laser hits on a moving target under budget and physical constraints, the hardware system underwent several engineering iterations:
+
+* **Microcontroller Selection (Edge Optimization):** Migrated from an entry-level educational board (Studuino) to a **Raspberry Pi Pico WH** (OS-less / MicroPython) to eliminate OS scheduling overhead and minimize latency, offloading sensor processing from the browser to the edge.
+
+* **Mathematical Optical Design:** Because a single convex lens failed to maintain focus across varying target distances—and commercial parabolic mirrors exceeded budget—I mathematically calculated the focal length of a **quadratic curve (parabola)**, modeled the reflector in 3D CAD, printed it using a 3D printer, and lined it with aluminum foil to achieve reliable diffuse reflection.
+* **Rapid Prototyping:** Following the cultural festival, the digital queue ticketing module (`/tickets`) was designed and implemented within **one day** to eliminate paper waste and streamline visitor flow.
+
+
 ## Project Notes
 
 Architecture decisions and AI collaboration notes are in [docs/prompts.md](./docs/prompts.md).
